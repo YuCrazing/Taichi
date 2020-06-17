@@ -1,9 +1,6 @@
 # Introduction
 A simple OBJ viewer.
-
-## Control
-
-W/A/S/D/Space/Shift: move camera.
+Use W/A/S/D/[Space]/[Shift] to move camera.
 
 ## Screenshot
 ![](cam.gif)
