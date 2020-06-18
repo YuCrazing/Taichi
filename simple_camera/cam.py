@@ -192,6 +192,8 @@ for i in range(9999999):
 
     for i in range(obj.fn):
         for j in range(3):
-            gui.line(obj.ndc[obj.faces[i][j]], obj.ndc[obj.faces[i][(j+1)%3]])
+            # clip lines out of the frustum
+            if abs(obj.ndc[obj.faces[i][j]].z) < 1 and abs(obj.ndc[obj.faces[i][(j+1)%3]].z) < 1:
+                gui.line(obj.ndc[obj.faces[i][j]], obj.ndc[obj.faces[i][(j+1)%3]])
         # gui.triangle(obj.ndc[obj.faces[i][0]], obj.ndc[obj.faces[i][1]], obj.ndc[obj.faces[i][2]], color=0x000000+i*100)
     gui.show()
