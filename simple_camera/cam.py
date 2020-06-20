@@ -46,18 +46,16 @@ class OBJ:
         self.cam_left = ti.Vector(3, dt=ti.f32, shape=())
         self.cam_up = ti.Vector(3, dt=ti.f32, shape=())
 
+        self.proj_l = -1
+        self.proj_r = 1
+        self.proj_t = 1
+        self.proj_b = -1
+        self.proj_n = 1
+        self.proj_f = 10000
+
         self.view_matrix = ti.Matrix(4, 4, dt=ti.f32, shape=())
         self.projection_matrix = ti.Matrix(4, 4, dt=ti.f32, shape=())
 
-        self.proj_l = ti.var(dt=ti.f32, shape=())
-        self.proj_r = ti.var(dt=ti.f32, shape=())
-        self.proj_t = ti.var(dt=ti.f32, shape=())
-        self.proj_b = ti.var(dt=ti.f32, shape=())
-        self.proj_n = ti.var(dt=ti.f32, shape=())
-        self.proj_f = ti.var(dt=ti.f32, shape=())
-
-
-        print("vertices: ", self.vn, "triangles: ", self.fn)
 
         for i in range(self.vn):
             self.velocity[i] = [0, -10, 0]
@@ -66,6 +64,7 @@ class OBJ:
         for i in range(self.fn):
             self.faces[i] = [self.f[3*i], self.f[3*i+1], self.f[3*i+2]]
 
+        print("vertices: ", self.vn, "triangles: ", self.fn)
 
     @ti.kernel
     def initialize(self):
@@ -77,18 +76,12 @@ class OBJ:
         self.cam_position[None].y = self.cam_target[None].y + 2
         self.cam_position[None].z = self.cam_target[None].z + 10
 
-        self.proj_l[None] = -1
-        self.proj_r[None] = 1
-        self.proj_t[None] = 1
-        self.proj_b[None] = -1
-        self.proj_n[None] = 1
-        self.proj_f[None] = 10000
-        self.projection_matrix[None][0, 0] = 2*self.proj_n[None]/(self.proj_r[None]-self.proj_l[None])
-        self.projection_matrix[None][0, 2] = (self.proj_r[None]+self.proj_l[None])/(self.proj_r[None]-self.proj_l[None])
-        self.projection_matrix[None][1, 1] = 2*self.proj_n[None]/(self.proj_t[None]-self.proj_b[None])
-        self.projection_matrix[None][1, 2] = (self.proj_t[None]+self.proj_b[None])/(self.proj_t[None]-self.proj_b[None])
-        self.projection_matrix[None][2, 2] = -(self.proj_f[None]+self.proj_n[None])/(self.proj_f[None]-self.proj_n[None])
-        self.projection_matrix[None][2, 3] = -2*self.proj_f[None]*self.proj_n[None]/(self.proj_f[None]-self.proj_n[None])
+        self.projection_matrix[None][0, 0] = 2*self.proj_n/(self.proj_r-self.proj_l)
+        self.projection_matrix[None][0, 2] = (self.proj_r+self.proj_l)/(self.proj_r-self.proj_l)
+        self.projection_matrix[None][1, 1] = 2*self.proj_n/(self.proj_t-self.proj_b)
+        self.projection_matrix[None][1, 2] = (self.proj_t+self.proj_b)/(self.proj_t-self.proj_b)
+        self.projection_matrix[None][2, 2] = -(self.proj_f+self.proj_n)/(self.proj_f-self.proj_n)
+        self.projection_matrix[None][2, 3] = -2*self.proj_f*self.proj_n/(self.proj_f-self.proj_n)
         self.projection_matrix[None][3, 2] = -1
 
     @ti.kernel
