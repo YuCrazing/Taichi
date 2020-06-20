@@ -138,6 +138,7 @@ ti.init(arch = ti.cpu)
 
 
 obj = OBJ('box.obj')
+# obj = OBJ('humanoid_quad.obj')
 # obj = OBJ('dodecahedron.obj')
 # obj = OBJ('Lowpoly_tree_sample.obj')
 # obj = OBJ('teddy.obj')
