@@ -11,12 +11,12 @@ class OBJ:
         with open(filename, "r") as file:
             for line in file:
                 if line[0:2] == 'v ':
-                    for pos in line.strip().split(' ')[1:]:
+                    for pos in line.strip().split()[1:]:
                         self.v.append(float(pos))
 
                 if line[0:2] == 'f ':
                     polygon = []
-                    for all_ind in line.strip().split(' ')[1:]:
+                    for all_ind in line.strip().split()[1:]:
                         v_ind = all_ind.strip().split('/')[0]
                         # print(v_ind)
                         polygon.append(int(v_ind)-1)
@@ -137,7 +137,8 @@ class OBJ:
 ti.init(arch = ti.cpu)
 
 
-obj = OBJ('box.obj')
+# obj = OBJ('box.obj')
+# obj = OBJ('dodecahedron.obj')
 # obj = OBJ('Lowpoly_tree_sample.obj')
 # obj = OBJ('teddy.obj')
 
