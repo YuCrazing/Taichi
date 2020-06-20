@@ -57,7 +57,7 @@ class OBJ:
         self.proj_f = ti.var(dt=ti.f32, shape=())
 
 
-        # print(self.vn, self.fn)
+        print("vertices: ", self.vn, "triangles: ", self.fn)
 
         for i in range(self.vn):
             self.velocity[i] = [0, -10, 0]
@@ -137,7 +137,7 @@ class OBJ:
 ti.init(arch = ti.cpu)
 
 
-# obj = OBJ('box.obj')
+obj = OBJ('box.obj')
 # obj = OBJ('dodecahedron.obj')
 # obj = OBJ('Lowpoly_tree_sample.obj')
 # obj = OBJ('teddy.obj')
