@@ -11,7 +11,7 @@ class OBJ:
         with open(filename, "r") as file:
             for line in file:
                 if line[0:2] == 'v ':
-                    for pos in line.strip().split()[1:]:
+                    for pos in line.strip().split()[1:4]: #[x, y, z]
                         self.v.append(float(pos))
 
                 if line[0:2] == 'f ':
