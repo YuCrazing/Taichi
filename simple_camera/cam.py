@@ -1,6 +1,4 @@
 import taichi as ti #version 0.6.10
-import numpy as np
-
 
 @ti.data_oriented
 class OBJ:
@@ -29,6 +27,7 @@ class OBJ:
 
 
         # print(self.v)
+        # print(self.f)
         self.dt = 1e-3
         self.vn = int(len(self.v)/3)
         self.fn = int(len(self.f)/3)
@@ -37,7 +36,6 @@ class OBJ:
         self.velocity = ti.Vector(3, dt=ti.f32, shape=self.vn)
         self.faces = ti.Vector(3, dt=ti.i32, shape=self.fn)
 
-        self.homogeneous_position = ti.Vector(4, dt=ti.f32, shape=self.vn)
         self.ndc = ti.Vector(4, dt=ti.f32, shape=self.vn)
 
 
@@ -123,17 +121,14 @@ class OBJ:
         self.view_matrix[None][3, 3] = 1
 
         for i in range(self.vn):
-            self.homogeneous_position[i].x = self.position[i].x
-            self.homogeneous_position[i].y = self.position[i].y
-            self.homogeneous_position[i].z = self.position[i].z
-            self.homogeneous_position[i].w = 1
-            self.ndc[i] = self.projection_matrix[None] @ self.view_matrix[None] @ self.homogeneous_position[i]
+            homogeneous_position = ti.Vector([self.position[i].x, self.position[i].y, self.position[i].z, 1])
+            self.ndc[i] = self.projection_matrix[None] @ self.view_matrix[None] @ homogeneous_position
             self.ndc[i] /= self.ndc[i].w
             self.ndc[i].x += 1
             self.ndc[i].x /= 2
             self.ndc[i].y += 1
             self.ndc[i].y /= 2
-            # print(self.homogeneous_position[i])
+            # print(homogeneous_position)
             # print(self.ndc[i])
 
 
