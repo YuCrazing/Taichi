@@ -11,8 +11,7 @@ class OBJ:
         with open(filename, "r") as file:
             for line in file:
                 if line[0:2] == 'v ':
-                    for pos in line.strip().split()[1:4]: #[x, y, z]
-                        self.v.append(float(pos))
+                    self.v += [float(pos) for pos in line.strip().split()[1:4]] # [x, y, z]
 
                 if line[0:2] == 'f ':
                     polygon = []
@@ -68,7 +67,7 @@ class OBJ:
 
     @ti.kernel
     def initialize(self):
-      
+
         # camera's target is the center of the object
         for i in range(self.vn):
             self.cam_target[None] += self.position[i]
