@@ -1,5 +1,5 @@
 ## Introduction
-A simple explicit 3D FEM implementation, using tetrahedral elements.
+A 3D implementation of explicit FEM using tetrahedral elements.
 
 ## Environment
 Taichi 0.6.10
