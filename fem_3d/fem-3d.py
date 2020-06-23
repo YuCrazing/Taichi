@@ -123,6 +123,7 @@ class Object:
         self.fn = int(len(self.f)/3)
         self.en = int(len(self.e)/4)
         self.dim = 3
+        self.inf = 1e10
 
         self.node = ti.Vector(self.dim, dt=ti.f32, shape=self.vn, needs_grad=True)
         self.face = ti.Vector(3, dt=ti.i32, shape=self.fn)
@@ -165,8 +166,8 @@ class Object:
             self.element[i] = [self.e[4*i], self.e[4*i+1], self.e[4*i+2], self.e[4*i+3]]
 
         # calculate the center of the object (the target of the camera)
-        self.lowerCorner[None] = [math.inf, math.inf, math.inf]
-        self.higherCorner[None] = [-math.inf, -math.inf, -math.inf]
+        self.lowerCorner[None] = [self.inf, self.inf, self.inf]
+        self.higherCorner[None] = [-self.inf, -self.inf, -self.inf]
         for i in range(self.vn):
             self.center[None].x += self.node[i].x
             self.center[None].y += self.node[i].y
@@ -258,7 +259,7 @@ class Object:
     @ti.kernel
     def time_integrate(self, floor_height:ti.f32):
         
-        mx = -math.inf
+        mx = -self.inf
 
         for i in range(self.vn):
             self.velocity[i] += ( - self.node.grad[i] / self.node_mass[i]  ) * self.dt
