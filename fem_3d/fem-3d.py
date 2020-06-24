@@ -241,7 +241,7 @@ class Object:
 
     @ti.func
     def U0(self, i): # elastic potential energy
-        return self.element_volume[i] * self.Psi(i) + self.element_mass[i]
+        return self.element_volume[i] * self.Psi(i)
 
     @ti.func
     def U1(self, i): # gravitational potential energy
