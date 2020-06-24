@@ -191,7 +191,7 @@ class Object:
             D = self.D(i)
             self.B[i] = D.inverse()
             a, b, c, d = self.element[i][0], self.element[i][1], self.element[i][2], self.element[i][3]
-            self.element_volume[i] = abs(D.determinant()) / 2
+            self.element_volume[i] = abs(D.determinant()) / 6
             self.element_mass[i] = self.element_volume[i]
             self.node_mass[a] += self.element_mass[i]
             self.node_mass[b] += self.element_mass[i]
