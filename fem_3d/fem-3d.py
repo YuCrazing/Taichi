@@ -308,30 +308,24 @@ for i in range(9999999):
         if gui.event.key == ti.GUI.ESCAPE:
             gui.running = False
 
-    if gui.is_pressed(ti.GUI.LEFT, 'a'):
-        cam.position[None].x -= delta * cam.left[None].x
-        cam.position[None].y -= delta * cam.left[None].y
-        cam.position[None].z -= delta * cam.left[None].z
-    if gui.is_pressed(ti.GUI.RIGHT, 'd'):
-        cam.position[None].x += delta * cam.left[None].x
-        cam.position[None].y += delta * cam.left[None].y
-        cam.position[None].z += delta * cam.left[None].z
-    if gui.is_pressed(ti.GUI.UP, 'w'):
-        cam.position[None].x -= delta * cam.forward[None].x
-        cam.position[None].y -= delta * cam.forward[None].y
-        cam.position[None].z -= delta * cam.forward[None].z
-    if gui.is_pressed(ti.GUI.DOWN, 's'):
-        cam.position[None].x += delta * cam.forward[None].x
-        cam.position[None].y += delta * cam.forward[None].y
-        cam.position[None].z += delta * cam.forward[None].z
+    if gui.is_pressed('a'):
+        for i in range(3):
+            cam.position[None][i] -= delta * cam.left[None][i]
+    if gui.is_pressed('d'):
+        for i in range(3):
+            cam.position[None][i] += delta * cam.left[None][i]
+    if gui.is_pressed('w'):
+        for i in range(3):
+            cam.position[None][i] -= delta * cam.forward[None][i]
+    if gui.is_pressed('s'):
+        for i in range(3):
+            cam.position[None][i] += delta * cam.forward[None][i]
     if gui.is_pressed(ti.GUI.SPACE):
-        cam.position[None].x += delta * cam.upDir[None].x
-        cam.position[None].y += delta * cam.upDir[None].y
-        cam.position[None].z += delta * cam.upDir[None].z
+        for i in range(3):
+            cam.position[None][i] += delta * cam.upDir[None][i]
     if gui.is_pressed(ti.GUI.SHIFT):
-        cam.position[None].x -= delta * cam.upDir[None].x
-        cam.position[None].y -= delta * cam.upDir[None].y
-        cam.position[None].z -= delta * cam.upDir[None].z
+        for i in range(3):
+            cam.position[None][i] -= delta * cam.upDir[None][i]
 
     cam.calculate_view_matrix()
 
