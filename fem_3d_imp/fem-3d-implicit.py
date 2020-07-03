@@ -27,7 +27,7 @@ class Object:
         # read elements from *.ele file
         with open(filename+".ele", "r") as file:
             en = int(file.readline().split()[0])
-            for i in range(en): # !!!!! some files are 1-based indexed
+            for i in range(en):
                 self.e += [ int(ind)-index_start for ind in file.readline().split()[1:5] ] # tetrahedron
 
 
@@ -54,35 +54,37 @@ class Object:
 
         # 0: explicit time integration
         # 1: jacobi iteration
-        # 2: conjugate gradient
+        # 2: conjugate gradient method
         self.method = 0 
 
         ## for simulation
-        self.dt = (1.0/24)
+        self.dt = 1.0/30
         self.g = 10.0
-        self.E = 1e3 # Young's modulus # system will explode when 1e6
+        self.E = 1e3 # Young's modulus
         self.nu = 0.3 # Poisson's ratio: nu \in [0, 0.5)
         # self.mu = self.E / (2 * (1 + self.nu))
         # self.la = self.E * self.nu / ((1 + self.nu) * (1 -2 * self.nu))
+        self.node_mass = 1.0
         self.mu = ti.var(dt=ti.f32, shape=())
         self.la = ti.var(dt=ti.f32, shape=())
         self.velocity = ti.Vector(self.dim, dt=ti.f32, shape=self.vn)
         self.force = ti.Vector(self.dim, dt=ti.f32, shape=self.vn)
-        self.node_mass = ti.var(dt=ti.f32, shape=self.vn)
         self.element_volume = ti.var(dt=ti.f32, shape=self.en)
         self.B = ti.Matrix(self.dim, self.dim, dt=ti.f32, shape=self.en) # a square matrix
 
         # derivatives
-        self.D_ndim = ti.Matrix(self.dim, self.dim, dt=ti.f32, shape=(self.en, 4, 3))
-        self.F_ndim = ti.Matrix(self.dim, self.dim, dt=ti.f32, shape=(self.en, 4, 3))
-        self.P_ndim = ti.Matrix(self.dim, self.dim, dt=ti.f32, shape=(self.en, 4, 3))
-        self.H_ndim = ti.Matrix(self.dim, self.dim, dt=ti.f32, shape=(self.en, 4, 3))
+        self.dD = ti.Matrix(self.dim, self.dim, dt=ti.f32, shape=(self.en, 4, 3))
+        self.dF = ti.Matrix(self.dim, self.dim, dt=ti.f32, shape=(self.en, 4, 3))
+        self.dP = ti.Matrix(self.dim, self.dim, dt=ti.f32, shape=(self.en, 4, 3))
+        self.dH = ti.Matrix(self.dim, self.dim, dt=ti.f32, shape=(self.en, 4, 3))
+
+        # dF/dx
         self.K = ti.var(dt=ti.f32, shape=(self.dim*self.vn, self.dim*self.vn))
 
         # for solving system of linear equations
         self.A = ti.var(dt=ti.f32, shape=(self.dim*self.vn, self.dim*self.vn))
         self.b = ti.var(dt=ti.f32, shape=self.dim*self.vn)
-        self.x = ti.var(dt=ti.f32, shape=self.dim*self.vn)
+        self.x = ti.var(dt=ti.f32, shape=self.dim*self.vn) # speed at next time
         self.x_new = ti.var(dt=ti.f32, shape=self.dim*self.vn)
         self.r = ti.var(dt=ti.f32, shape=self.dim*self.vn) # residual
         self.d = ti.var(dt=ti.f32, shape=self.dim*self.vn)
@@ -133,10 +135,6 @@ class Object:
             a, b, c, d = self.element[i][0], self.element[i][1], self.element[i][2], self.element[i][3]
             self.element_volume[i] = abs(D.determinant()) / 6.0
 
-
-        for i in range(self.vn):
-            self.node_mass[i] = 1.0
-
     @ti.kernel
     def projection(self, view_matrix:ti.template(), projection_matrix:ti.template()):
 
@@ -148,6 +146,8 @@ class Object:
             self.ndc[i].x /= 2.0
             self.ndc[i].y += 1.0
             self.ndc[i].y /= 2.0
+            self.ndc[i].z = 0.0
+            self.ndc[i].w = 0.0
 
     @ti.func
     def D(self, i):
@@ -168,11 +168,27 @@ class Object:
         J = max(F.determinant(), 0.01)
         return self.mu * (F - F_T) + self.la * ti.log(J) * F_T
 
+    @ti.func
+    def Psi(self, i): # (strain) energy density
+        F = self.F(i)
+        J = max(F.determinant(), 0.01)
+        return self.mu / 2 * ( (F @ F.transpose()).trace() - self.dim ) - self.mu * ti.log(J) + self.la / 2 * ti.log(J)**2
+
+    @ti.kernel
+    def energy(self) -> ti.f32:
+        e = 0.0
+        for i in range(self.en):
+            e += self.element_volume[i] * self.Psi(i)
+        for i in range(self.vn):
+            e += self.node_mass * self.g * (self.node[i].y + 2)
+            e += 0.5 * self.node_mass * self.velocity[i].dot(self.velocity[i])
+        return e
+
     @ti.kernel
     def compute_force(self):
 
         for i in range(self.vn):
-            self.force[i] = ti.Vector([0, -self.node_mass[i] * self.g, 0])
+            self.force[i] = ti.Vector([0, -self.node_mass * self.g, 0])
 
         for i in range(self.en):
 
@@ -203,20 +219,19 @@ class Object:
                 for dim in range(self.dim):
                     for i in ti.static(range(self.dim)):
                         for j in ti.static(range(self.dim)):
-                            self.D_ndim[e, n, dim][i, j] = 0
-                            self.F_ndim[e, n, dim][i, j] = 0
-                            self.P_ndim[e, n, dim][i, j] = 0
+                            self.dD[e, n, dim][i, j] = 0
+                            self.dF[e, n, dim][i, j] = 0
+                            self.dP[e, n, dim][i, j] = 0
 
             for n in ti.static(range(3)):
                 for dim in ti.static(range(self.dim)):
-                    self.D_ndim[e, n, dim][dim, n] = 1
-
+                    self.dD[e, n, dim][dim, n] = 1
             for dim in ti.static(range(self.dim)):
-                self.D_ndim[e, 3, dim] = - (self.D_ndim[e, 0, dim] + self.D_ndim[e, 1, dim] + self.D_ndim[e, 2, dim])
+                self.dD[e, 3, dim] = - (self.dD[e, 0, dim] + self.dD[e, 1, dim] + self.dD[e, 2, dim])
 
             for n in range(4):
                 for dim in range(self.dim):
-                    self.F_ndim[e, n, dim] = self.D_ndim[e, n, dim] @ self.B[e] # !!!!! matrix multiplication
+                    self.dF[e, n, dim] = self.dD[e, n, dim] @ self.B[e] # !!!!! matrix multiplication
 
             F = self.F(e)
             F_1 = F.inverse()
@@ -241,13 +256,13 @@ class Object:
                             dTr = F_1_T[i, j]
 
                             dP_dFij = self.mu * dF + (self.mu - self.la * ti.log(J)) * F_1_T @ dF_T @ F_1_T + self.la * dTr * F_1_T
-                            dFij_ndim = self.F_ndim[e, n, dim][i, j]
+                            dFij_ndim = self.dF[e, n, dim][i, j]
 
-                            self.P_ndim[e, n, dim] += dP_dFij * dFij_ndim
+                            self.dP[e, n, dim] += dP_dFij * dFij_ndim
 
             for n in range(4):
                 for dim in range(self.dim):
-                    self.H_ndim[e, n, dim] = - self.element_volume[e] * self.P_ndim[e, n, dim] @ self.B[e].transpose()
+                    self.dH[e, n, dim] = - self.element_volume[e] * self.dP[e, n, dim] @ self.B[e].transpose()
 
 
     
@@ -256,16 +271,16 @@ class Object:
                 for dim in ti.static(range(self.dim)):
                     ind = i * self.dim + dim
                     for j in ti.static(range(3)):
-                        self.K[self.element[e][j]*3+0, ind] += self.H_ndim[e, n, dim][0, j] # df_jx/d_node_ndim
-                        self.K[self.element[e][j]*3+1, ind] += self.H_ndim[e, n, dim][1, j] # df_jy/d_node_ndim
-                        self.K[self.element[e][j]*3+2, ind] += self.H_ndim[e, n, dim][2, j] # df_jz/d_node_ndim
+                        self.K[self.element[e][j]*3+0, ind] += self.dH[e, n, dim][0, j] # df_jx/d_node_ndim
+                        self.K[self.element[e][j]*3+1, ind] += self.dH[e, n, dim][1, j] # df_jy/d_node_ndim
+                        self.K[self.element[e][j]*3+2, ind] += self.dH[e, n, dim][2, j] # df_jz/d_node_ndim
 
                     # df_3x/d_node_ndim
-                    self.K[self.element[e][3]*3+0, ind] += -(self.H_ndim[e, n, dim][0, 0] + self.H_ndim[e, n, dim][0, 1] + self.H_ndim[e, n, dim][0, 2])
+                    self.K[self.element[e][3]*3+0, ind] += -(self.dH[e, n, dim][0, 0] + self.dH[e, n, dim][0, 1] + self.dH[e, n, dim][0, 2])
                     # df_3y/d_node_ndim
-                    self.K[self.element[e][3]*3+1, ind] += -(self.H_ndim[e, n, dim][1, 0] + self.H_ndim[e, n, dim][1, 1] + self.H_ndim[e, n, dim][1, 2])
+                    self.K[self.element[e][3]*3+1, ind] += -(self.dH[e, n, dim][1, 0] + self.dH[e, n, dim][1, 1] + self.dH[e, n, dim][1, 2])
                     # df_3x/d_node_ndim
-                    self.K[self.element[e][3]*3+2, ind] += -(self.H_ndim[e, n, dim][2, 0] + self.H_ndim[e, n, dim][2, 1] + self.H_ndim[e, n, dim][2, 2])
+                    self.K[self.element[e][3]*3+2, ind] += -(self.dH[e, n, dim][2, 0] + self.dH[e, n, dim][2, 1] + self.dH[e, n, dim][2, 2])
 
     @ti.kernel
     def assembly(self):
@@ -279,7 +294,7 @@ class Object:
         for i in range(self.vn):
             for j in range(self.dim):
                 for k in range(self.vn*self.dim):
-                        self.K[i*self.dim+j, k] *= self.dt**2 / self.node_mass[i] 
+                        self.K[i*self.dim+j, k] *= self.dt**2 / self.node_mass
 
         for i in range(self.vn):
             for j in range(self.dim):
@@ -293,7 +308,7 @@ class Object:
         for i in range(self.vn):
             for j in ti.static(range(self.dim)):
                 self.x[i*self.dim+j] = self.velocity[i][j] # initial values
-                self.b[i*self.dim+j] = self.velocity[i][j] + self.dt / self.node_mass[i] * self.force[i][j]
+                self.b[i*self.dim+j] = self.velocity[i][j] + self.dt / self.node_mass * self.force[i][j]
 
     @ti.kernel
     def time_integrate(self, floor_height:ti.f32):
@@ -305,24 +320,27 @@ class Object:
         for i in range(self.vn):
 
             if self.method == 0:
-                self.velocity[i] += ( self.force[i] / self.node_mass[i] + ti.Vector([0, -10, 0])  ) * self.dt
+                self.velocity[i] += ( self.force[i] / self.node_mass + ti.Vector([0, -10, 0])  ) * self.dt
             else:
                 self.velocity[i] = ti.Vector([self.x[i*3+0], self.x[i*3+1], self.x[i*3+2]])
 
             # self.velocity[i] *= math.exp(self.dt*-6)
+
             self.node[i] += self.velocity[i] * self.dt
 
             if self.node[i].y < floor_height:
                 self.node[i].y = floor_height
                 self.velocity[i].y = 0
-                self.x[i*3+1] = 0
+                self.x[i* 3+1] = 0
 
             mx = max(mx, self.force[i].norm())
 
         mx = max(mx, 1)
 
         for i in range(self.vn):
-            self.color[i] = int(self.force[i].norm() / mx * 255)
+            grey = int(self.force[i].norm() / mx * 255)
+            grey = min(max(grey, 0), 255)
+            self.color[i] = grey
 
 
     @ti.kernel
@@ -342,7 +360,7 @@ class Object:
             for i in range(n):
                 self.x[i] = self.x_new[i]
 
-            res = 0.0 #!!!!!!!!!!!!!! residual = 0 will forever be an integer
+            res = 0.0 #!!!
             for i in range(n):
                 r = self.b[i]*1.0
                 for j in range(n):
@@ -353,7 +371,7 @@ class Object:
                 break
 
             iter_i += 1
-        print("Jacobi iteration:", iter_i, res)
+        # print("Jacobi iteration:", iter_i, res)
 
 
 
@@ -375,13 +393,14 @@ class Object:
             delta_new += self.r[i]*self.r[i]
         delta_0 = delta_new
 
-        # tol = tol*tol
+        if delta_0 < tol: pass
 
         iter_i = 0
-        while iter_i < max_iter_num and delta_new > tol * delta_0:
-            
+        while iter_i < max_iter_num:
+
+
             for i in range(n):
-                r = 0.0 #!!!!!!!!!!!!!!!!! 0.0 not 0 !!!!!!
+                r = 0.0 #!!!
                 for j in range(n):
                     r += self.A[i, j] * self.d[j]
                 self.q[i] = r
@@ -394,7 +413,8 @@ class Object:
             for i in range(n):
                 self.x[i] += alpha * self.d[i]
 
-            if (iter_i+1) % 1 == 0:
+
+            if (iter_i+1) % 50 == 0:
                 for i in range(n):
                     r = self.b[i]*1.0
                     for j in range(n):
@@ -409,7 +429,7 @@ class Object:
             for i in range(n):
                 delta_new += self.r[i] * self.r[i]
 
-            # if delta_new < tol: break
+            if delta_new < tol: break
 
             beta = delta_new / delta_old
 
@@ -418,16 +438,11 @@ class Object:
 
             iter_i += 1
 
-        # res = 0.0 #!!!!!!!!!!!!!! residual = 0 will forever be an integer
-        # for i in range(n):
-        #     res += self.r[i] * self.r[i]
-
-        print("Conjugate gradient:", iter_i, delta_new)
+        # print("Conjugate gradient:", iter_i, delta_new)
 
 
 
 ti.init(arch=ti.cpu)
-# ti.init(arch=ti.cpu, debug=True)
 
 
 
@@ -436,11 +451,13 @@ floor = Floor(-2, 4)
 # obj = Object('tetrahedral-models/cube.1')
 obj = Object('tetrahedral-models/ellell.1', 0)
 
-obj.method = 2
-obj.E = 1e6
-obj.g = 10.0
-calculation_time = (1 if obj.method == 2 else 30)
-obj.dt = 1.0/24/calculation_time
+
+
+# simulation parameters
+obj.method = 1
+obj.E = 1e3
+num_of_update = (1 if obj.method == 2 else 30)
+obj.dt = 1.0/30/num_of_update
 
 
 
@@ -451,7 +468,7 @@ cam.initialize(obj.center, obj.lowerCorner, obj.higherCorner)
 win_width = 600
 gui = ti.GUI('Implicit FEM', res=(win_width, win_width), background_color=0x112F41)
 
-get_color = lambda i, j1, j2: int((obj.color[obj.element[i][j1]] + obj.color[obj.element[i][j2]])/2)*0x010000
+get_color = lambda i, j1, j2: (obj.color[obj.element[i][j1]] + obj.color[obj.element[i][j2]])//2 * 0x010000
 
 
 for frame in range(9999999):
@@ -500,30 +517,30 @@ for frame in range(9999999):
     obj.la[None] = obj.E * obj.nu / ((1 + obj.nu) * (1 - 2 * obj.nu))
 
 
-    
 
-    for i in range(calculation_time):
+    for i in range(num_of_update):
         obj.compute_force()
 
         if obj.method != 0:
             obj.assembly()
 
+            # print matrix A to file
             # if frame == 0:
-            #     with open("matrix_A_L_1e3_1e-3.txt", "w") as file:
+            #     with open("matrix_A.txt", "w") as file:
             #         for i in range(obj.vn*obj.dim):
             #             for j in range(obj.vn*obj.dim):
             #                 file.write("%15.6f"%obj.A[i, j])
             #             file.write("\n")
+            #     exit()
 
             if obj.method == 1:
                 # jacobi iteration
-                obj.jacobi(100, 1e-6)
+                obj.jacobi(100, 1e-5)
             elif obj.method == 2:
                 # conjugate gradient
-                obj.CG(obj.vn*obj.dim*3, 1e-4)
+                obj.CG(obj.vn*obj.dim*3, 1e-5)
         
         obj.time_integrate(floor.height)
-    # break
 
 
     obj.projection(cam.view_matrix, cam.projection_matrix)
@@ -533,7 +550,6 @@ for frame in range(9999999):
     for i in range(4):
         if abs(floor.ndc[i].z) < 1 and abs(floor.ndc[(i+1)%4].z) < 1:
             gui.line(floor.ndc[i], floor.ndc[(i+1)%4], color=0x3241f4)
-
 
     # render object (faces)
     for i in range(obj.fn):
@@ -552,11 +568,15 @@ for frame in range(9999999):
 
     gui.text(content=f'Nodes: {obj.vn}', pos=(0, 0.9), color=0xFFFFFF)
     gui.text(content=f'Elements: {obj.en}', pos=(0, 0.87), color=0xFFFFFF)
-    gui.text(content=f'Young\'s modulus: {int(obj.E)}', pos=(0, 0.84), color=0xFFFFFF)
+    gui.text(content=f'Young\'s modulus: {obj.E:.2f}', pos=(0, 0.84), color=0xFFFFFF)
+    gui.text(content=f'Energy: {obj.energy():.2f}', pos=(0, 0.81), color=0xFFFFFF)
 
-    filename = f'out-figs-normal-{obj.method}/frame_{frame:05d}.png'
-    gui.show()
+
+    # # save screenshots to file
+    # filename = f'screenshot/3-figs-{obj.method}/{frame:04d}.png'
     # gui.show(filename)
+
+    gui.show()
 
     # export to .PLY file
     # if frame == 0:
@@ -565,13 +585,13 @@ for frame in range(9999999):
     #     floor_writer = ti.PLYWriter(num_vertices=4, num_faces=2)
     #     floor_writer.add_vertex_pos(np_pos[:, 0], np_pos[:, 1], np_pos[:, 2])
     #     floor_writer.add_faces(np_face)
-    #     floor_writer.export_frame_ascii(frame, "output/floor")
+    #     floor_writer.export_frame_ascii(frame, "floor")
 
     # np_pos = np.reshape(obj.node.to_numpy(), (obj.vn, 3))
     # np_face = np.reshape(obj.face.to_numpy(), (1, -1))
     # obj_writer = ti.PLYWriter(num_vertices=obj.vn, num_faces=obj.fn)
     # obj_writer.add_vertex_pos(np_pos[:, 0], np_pos[:, 1], np_pos[:, 2])
     # obj_writer.add_faces(np_face)
-    # obj_writer.export_frame_ascii(frame, "output-mesh-0/obj")
+    # obj_writer.export_frame_ascii(frame, f"mesh-{obj.method}/obj")
     
-    # if frame+1 == 24*5: break
+    # if frame+1 == 30*4: exit()
