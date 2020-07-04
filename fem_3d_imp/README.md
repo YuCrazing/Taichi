@@ -1,7 +1,7 @@
 ## Introduction
 An implementation of 3D linear FEM based on Neohookean elasticity model (No damping force).
 
-Three different numerical method are implemented respectively, include:
+Three different numerical methods are implemented respectively, include:
 - Explicit time integration
 - Implicit time integration, solved by
     - Jacobi Method
