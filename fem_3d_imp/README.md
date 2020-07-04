@@ -8,11 +8,9 @@ Three different numerical method are implemented respectively, include:
     - Conjugate Gradient Method
 
 Environment: `Taichi 0.6.15`
-<!-- Comparison between three method is presented as below: -->
 
 ## Simulation Results
 
-<!-- <img src="rendered/out-ja.gif" width="20%" > -->
 
 ![](rendered/out-exp.gif)
 ![](rendered/out-ja.gif)
@@ -50,13 +48,12 @@ For `CG` method, the system always converges since the coefficient matrix `A` is
  ![](analysis/Young_modulus/2-ja.gif)
  ![](analysis/Young_modulus/2-cg.gif)
 
-`\rho = 1.13`.
+`\rho = 1.13`
 
 
 
 ### Problems of Conjugate Gradient Method
 
-<!-- 1. Rotation -->
  ![](analysis/problems/3-cg.gif)
 
 1. Object rotates slowly when time step is large.
