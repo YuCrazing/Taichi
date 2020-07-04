@@ -1,6 +1,7 @@
 import taichi as ti #version 0.6.10
 import numpy as np
 import math
+import time
 
 from utils import *
 
@@ -214,6 +215,7 @@ class Object:
 
     @ti.func
     def compute_K(self):
+
         for e in range(self.en):
             for n in range(4):
                 for dim in range(self.dim):
@@ -231,7 +233,7 @@ class Object:
 
             for n in range(4):
                 for dim in range(self.dim):
-                    self.dF[e, n, dim] = self.dD[e, n, dim] @ self.B[e] # !!!!! matrix multiplication
+                    self.dF[e, n, dim] = self.dD[e, n, dim] @ self.B[e] # !!! matrix multiplication
 
             F = self.F(e)
             F_1 = F.inverse()
@@ -271,15 +273,15 @@ class Object:
                 for dim in ti.static(range(self.dim)):
                     ind = i * self.dim + dim
                     for j in ti.static(range(3)):
-                        self.K[self.element[e][j]*3+0, ind] += self.dH[e, n, dim][0, j] # df_jx/d_node_ndim
-                        self.K[self.element[e][j]*3+1, ind] += self.dH[e, n, dim][1, j] # df_jy/d_node_ndim
-                        self.K[self.element[e][j]*3+2, ind] += self.dH[e, n, dim][2, j] # df_jz/d_node_ndim
+                        self.K[self.element[e][j]*3+0, ind] += self.dH[e, n, dim][0, j] # df_{jx}/dx_{ndim}
+                        self.K[self.element[e][j]*3+1, ind] += self.dH[e, n, dim][1, j] # df_{jy}/dx_{ndim}
+                        self.K[self.element[e][j]*3+2, ind] += self.dH[e, n, dim][2, j] # df_{jz}/dx_{ndim}
 
-                    # df_3x/d_node_ndim
+                    # df_{3x}/dx_{ndim}
                     self.K[self.element[e][3]*3+0, ind] += -(self.dH[e, n, dim][0, 0] + self.dH[e, n, dim][0, 1] + self.dH[e, n, dim][0, 2])
-                    # df_3y/d_node_ndim
+                    # df_{3y}/dx_{ndim}
                     self.K[self.element[e][3]*3+1, ind] += -(self.dH[e, n, dim][1, 0] + self.dH[e, n, dim][1, 1] + self.dH[e, n, dim][1, 2])
-                    # df_3x/d_node_ndim
+                    # df_{3x}/dx_{ndim}
                     self.K[self.element[e][3]*3+2, ind] += -(self.dH[e, n, dim][2, 0] + self.dH[e, n, dim][2, 1] + self.dH[e, n, dim][2, 2])
 
     @ti.kernel
@@ -454,7 +456,7 @@ obj = Object('tetrahedral-models/ellell.1', 0)
 
 
 # simulation parameters
-obj.method = 1
+obj.method = 0
 obj.E = 1e3
 num_of_update = (1 if obj.method == 2 else 30)
 obj.dt = 1.0/30/num_of_update
@@ -472,6 +474,8 @@ get_color = lambda i, j1, j2: (obj.color[obj.element[i][j1]] + obj.color[obj.ele
 
 
 for frame in range(9999999):
+
+    start_time = time.time()
 
     delta = 2e-1
     while gui.get_event(ti.GUI.PRESS):
@@ -524,7 +528,7 @@ for frame in range(9999999):
         if obj.method != 0:
             obj.assembly()
 
-            # print matrix A to file
+            # # print matrix A to file
             # if frame == 0:
             #     with open("matrix_A.txt", "w") as file:
             #         for i in range(obj.vn*obj.dim):
@@ -566,14 +570,19 @@ for frame in range(9999999):
     #         if abs(obj.ndc[obj.element[i][j]].z) < 1 and abs(obj.ndc[obj.element[i][j+2]].z) < 1:
     #             gui.line(obj.ndc[obj.element[i][j]], obj.ndc[obj.element[i][j+2]], color=get_color(i, j, j+2))
 
-    gui.text(content=f'Nodes: {obj.vn}', pos=(0, 0.9), color=0xFFFFFF)
-    gui.text(content=f'Elements: {obj.en}', pos=(0, 0.87), color=0xFFFFFF)
-    gui.text(content=f'Young\'s modulus: {obj.E:.2f}', pos=(0, 0.84), color=0xFFFFFF)
-    gui.text(content=f'Energy: {obj.energy():.2f}', pos=(0, 0.81), color=0xFFFFFF)
+    end_time = time.time()
+
+    gui.text(content=f'Method: '+('Explicit' if obj.method == 0 else ('Jacobi' if obj.method == 1 else 'CG')), pos=(0, 0.96), color=0xFFFFFF)
+    gui.text(content=f'Time step: {obj.dt:.6f}', pos=(0, 0.93), color=0xFFFFFF)
+    gui.text(content=f'Updates per frame: {num_of_update}', pos=(0, 0.90), color=0xFFFFFF)
+    gui.text(content=f'Young\'s modulus: {obj.E:.0f}', pos=(0, 0.87), color=0xFFFFFF)
+    gui.text(content=f'Energy: {obj.energy():.2f}', pos=(0, 0.84), color=0xFFFFFF)
+    gui.text(content=f'FPS: {1.0/(end_time - start_time):.2f}', pos=(0, 0.81), color=0xFFFFFF)
 
 
-    # # save screenshots to file
-    # filename = f'screenshot/3-figs-{obj.method}/{frame:04d}.png'
+
+    # save screenshots to file
+    # filename = f'screenshot/4-figs-{obj.method}/{frame:04d}.png'
     # gui.show(filename)
 
     gui.show()
@@ -594,4 +603,4 @@ for frame in range(9999999):
     # obj_writer.add_faces(np_face)
     # obj_writer.export_frame_ascii(frame, f"mesh-{obj.method}/obj")
     
-    # if frame+1 == 30*4: exit()
+    # if frame+1 == 24*4: exit()
