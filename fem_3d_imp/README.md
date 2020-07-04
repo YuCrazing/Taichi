@@ -31,7 +31,7 @@ For `CG` method, the system always converges since the coefficient matrix `A` is
  ![](analysis/same/0-ja.gif)
  ![](analysis/same/0-cg.gif)
 
-`Explicit` and `Jacobi` method should update many times using a small time step at each frame.
+`Explicit` and `Jacobi` method **have to** update many times using a small time step at each frame.
 
 `\rho = 0.0036`
 
