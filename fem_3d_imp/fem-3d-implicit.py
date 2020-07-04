@@ -79,7 +79,7 @@ class Object:
         self.dP = ti.Matrix(self.dim, self.dim, dt=ti.f32, shape=(self.en, 4, 3))
         self.dH = ti.Matrix(self.dim, self.dim, dt=ti.f32, shape=(self.en, 4, 3))
 
-        # dF/dx
+        # df/dx
         self.K = ti.var(dt=ti.f32, shape=(self.dim*self.vn, self.dim*self.vn))
 
         # for solving system of linear equations
