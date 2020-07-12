@@ -68,11 +68,8 @@ I still don't know why CG doesn't converge in this condition, I guess this is ca
 
 
 
-<!-- ## Reference -->
+## References
 
+[1] [The classical FEM method and discretization methodology](http://femdefo.org/)
 
-<!-- | Tables   |      Are      |  Cool | -->
-<!-- |----------|:-------------:|------:| -->
-<!-- | col 1 is |  left-aligned | $1600 | -->
-<!-- | col 2 is |    centered   |   $12 | -->
-<!-- | col 3 is | right-aligned |    $1 | -->
+[2] [An Introduction to the Conjugate Gradient Method Without the Agonizing Pain](https://www.cs.cmu.edu/~quake-papers/painless-conjugate-gradient.pdf)
