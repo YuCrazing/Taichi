@@ -7,22 +7,28 @@ import time
 ti.init(arch=ti.cpu)
 
 
-n = 512
+n = 400
 dt = 0.05
 
 # 1, 2, 3
 RK = 3
 
-# enable BFECC
-BFECC = False
+#
+enable_BFECC = True
+
+#
+enable_clipping = True
 
 pixels = ti.Vector(3, dt=ti.f32, shape=(n, n))
 new_pixels = ti.Vector(3, dt=ti.f32, shape=(n, n))
 new_new_pixels = ti.Vector(3, dt=ti.f32, shape=(n, n))
 
 
-res = ti.Vector([n, n])
+# screen center
 center = ti.Vector([0.5, 0.5])
+
+# cell center
+stagger = ti.Vector([0.5, 0.5])
 
 
 @ti.func
@@ -38,38 +44,70 @@ def vel(p):
 
 @ti.kernel
 def init_image():
+	# super sampling
 	for i, j in ti.ndrange(4*n, 4*n):
-		d = ti.Vector([i/4/n, j/4/n]) - ti.Vector([0.7, 0.7])
-		if d.norm_sqr() < 0.005:
-			# pixels[i//4, j//4] = ti.Vector([ti.random(), ti.random(), ti.random()])
-			pixels[i//4, j//4] += ti.Vector([0.0, 0.0, 0.0])/16
-			# x = i/4/n
-			# # pixels[i, j] = ti.Vector([(i//200+1)*0.2, (j//200+1)*0.2, 0.1])
-			# if x < 1/3:
-			# 	pixels[i//4, j//4] += ti.Vector([1.0, 1.0, 1.0])/16
-			# elif x < 2/3:
-			# 	pixels[i//4, j//4] += ti.Vector([1.0, 1.0, 1.0])/16
-			# else:
-			# 	pixels[i//4, j//4] += ti.Vector([0.0, 0.0, 0.0])/16
+		d = ti.Vector([i/4/n, j/4/n]) - center
+		if d.norm_sqr() < 0.2:
+			x = i/4/n
+			if x < 1/3:
+				pixels[i//4, j//4] += ti.Vector([0.0, 0.0, 0.0])/16
+			elif x < 2/3:
+				pixels[i//4, j//4] += ti.Vector([1.0, 1.0, 1.0])/16
+			else:
+				pixels[i//4, j//4] += ti.Vector([1.0, 0.0, 0.0])/16
 		else:
 			pixels[i//4, j//4] += ti.Vector([1.0, 1.0, 1.0])/16
 
 
+@ti.func
+def clamp(p):
+	# clamp p to [0.5/n, 1-1/n+0.5/n), i.e. clamp cell index to [0, n-1)
+	for d in ti.static(range(p.n)):
+		p[d] = min(1 - 1/n + stagger[d]/n - 1e-4, max(p[d], stagger[d]/n))
+	return p
 
 @ti.func
-def bilinear_interpolate(pixels, p):
+def sample_bilinear(pixels, p):
 
-	# clamp to [0, 1-1/n)
-	for i in ti.static(range(p.n)):
-		p[i] = min(1-1e-4-1/n, max(p[i], 0))
-	
-	grid_f = p * res
+	p = clamp(p)
+
+	grid_f = p * n - stagger
 	grid_i = ti.cast(ti.floor(grid_f), ti.i32)
-	d = grid_f - grid_i
 
+	d = grid_f - grid_i
+	
 	return pixels[ grid_i ] * (1-d.x)*(1-d.y) + pixels[ grid_i+I(1, 0) ] * d.x*(1-d.y) + pixels[ grid_i+I(0, 1) ] * (1-d.x)*d.y + pixels[ grid_i+I(1, 1) ] * d.x*d.y
 
+@ti.func
+def sample_min(pixels, p):
 
+	p = clamp(p)
+
+	grid_f = p * n - stagger
+	grid_i = ti.cast(ti.floor(grid_f), ti.i32)
+	
+
+	color = ti.Vector([0.0, 0.0, 0.0])
+
+	for d in ti.static(range(color.n)):
+		color[d] = min( pixels[ grid_i ][d], pixels[ grid_i+I(1, 0) ][d], pixels[ grid_i+I(0, 1) ][d], pixels[ grid_i+I(1, 1) ][d] )
+
+	return color
+
+@ti.func
+def sample_max(pixels, p):
+
+	p = clamp(p)
+
+	grid_f = p * n - stagger
+	grid_i = ti.cast(ti.floor(grid_f), ti.i32)
+	
+	color = ti.Vector([0.0, 0.0, 0.0])
+
+	for d in ti.static(range(color.n)):
+		color[d] = max( pixels[ grid_i ][d], pixels[ grid_i+I(1, 0) ][d], pixels[ grid_i+I(0, 1) ][d], pixels[ grid_i+I(1, 1) ][d] )
+
+	return color
 
 @ti.func
 def backtrace(p, dt):
@@ -91,26 +129,39 @@ def backtrace(p, dt):
 
 @ti.func
 def semi_lagrangian(pixels, new_pixels, dt):
-	for i, j in pixels:
-		p = ti.Vector([i/n, j/n])
-		new_pixels[i, j] = bilinear_interpolate(pixels, backtrace(p, dt))
+	for i in ti.grouped(pixels):
+		p = (i + stagger) / n
+		new_pixels[i] = sample_bilinear(pixels, backtrace(p, dt))
 
 
 
 @ti.func
-def BFECC(p):
-	for i, j in pixels:
-		semi_lagrangian(pixels, new_pixels, p, dt)
-		semi_lagrangian(new_pixels, new_new_pixels, p1, -dt)
+def BFECC():
+	
+	semi_lagrangian(pixels, new_pixels, dt)
+	semi_lagrangian(new_pixels, new_new_pixels, -dt)
 
 	for i in ti.grouped(pixels):
-		new_pixels[i] = new_pixels[i] + 0.5 * (new_new_pixels[i] - pixels[i])
+		
+		new_pixels[i] = new_pixels[i] - 0.5 * (new_new_pixels[i] - pixels[i])
+
+		if ti.static(enable_clipping):
+			
+			source_pos = backtrace( (i + stagger) / n, dt )
+			mi = sample_min(pixels, source_pos)
+			mx = sample_max(pixels, source_pos)
+
+			if new_pixels[i].x < mi.x or new_pixels[i].y < mi.y or new_pixels[i].z < mi.z or new_pixels[i].x > mx.x or new_pixels[i].y > mx.y or new_pixels[i].z > mx.z:
+				new_pixels[i] = sample_bilinear(pixels, source_pos)
+				
+				# runtime error
+				# break
 
 
 
 @ti.kernel
 def advect():
-	if ti.static(BFECC == True):
+	if ti.static(enable_BFECC):
 		BFECC()
 	else:
 		semi_lagrangian(pixels, new_pixels, dt)
@@ -125,21 +176,25 @@ init_image()
 
 gui = ti.GUI("Fluid 2D", (n, n))
 
-pause = False
 
+# result_dir = "./fluid_2d"
+# video_manager = ti.VideoManager(output_dir=result_dir, framerate=30, automatic_build=False)
 
-result_dir = "./fluid_2d"
-video_manager = ti.VideoManager(output_dir=result_dir, framerate=30, automatic_build=False)
-for frame in range(150):
+for frame in range(300000):
 	
-	if not pause:
-		advect()
-		# pause = True
+	advect()
 	# time.sleep(1)
 
 	gui.set_image(pixels)
+
+	gui.text(content=f'RK {RK}', pos=(0, 0.98), color=0x0)
+	if enable_BFECC: 
+		gui.text(content=f'BFECC', pos=(0, 0.94), color=0x0)
+		if enable_clipping: 
+			gui.text(content=f'Clipped', pos=(0, 0.90), color=0x0)
+	
 	gui.show()
 
-	video_manager.write_frame(pixels.to_numpy())
+	# video_manager.write_frame(pixels.to_numpy())
 
-video_manager.make_video(gif=True, mp4=True)
+# video_manager.make_video(gif=True, mp4=True)
