@@ -9,6 +9,9 @@ ti.init(arch=ti.cpu)
 
 n = 400
 dt = 0.05
+dx = 1/n
+
+rho = 10
 
 # 1, 2, 3
 RK = 3
@@ -17,14 +20,20 @@ RK = 3
 enable_BFECC = True
 
 #
-enable_clipping = True
+enable_clipping = False
 
-pixels = ti.Vector(3, dt=ti.f32, shape=(n, n))
-new_pixels = ti.Vector(3, dt=ti.f32, shape=(n, n))
-new_new_pixels = ti.Vector(3, dt=ti.f32, shape=(n, n))
+colors = ti.Vector(3, dt=ti.f32, shape=(n, n))
+new_colors = ti.Vector(3, dt=ti.f32, shape=(n, n))
+new_new_colors = ti.Vector(3, dt=ti.f32, shape=(n, n))
+
+velocities = ti.Vector(2, dt=ti.f32, shape=(n, n))
+new_velocities = ti.Vector(2, dt=ti.f32, shape=(n, n))
+new_new_velocities = ti.Vector(2, dt=ti.f32, shape=(n, n))
+
+pressures = ti.var(dt=ti.f32, shape=(n, n))
 
 
-# screen center
+# screen center. The simualation area is (0, 0) to (1, 1)
 center = ti.Vector([0.5, 0.5])
 
 # cell center
@@ -39,35 +48,50 @@ def I(i, j):
 @ti.func
 def vel(p):
 	# rotation
-	return ti.Vector([p.y-center.y, center.x-p.x])
+	# return ti.Vector([p.y-center.y, center.x-p.x])
+	return sample_bilinear(velocities, p)
 
 
 @ti.kernel
-def init_image():
+def init_color_field():
 	# super sampling
-	for i, j in ti.ndrange(4*n, 4*n):
-		d = ti.Vector([i/4/n, j/4/n]) - center
-		if d.norm_sqr() < 0.2:
-			x = i/4/n
-			if x < 1/3:
-				pixels[i//4, j//4] += ti.Vector([0.0, 0.0, 0.0])/16
-			elif x < 2/3:
-				pixels[i//4, j//4] += ti.Vector([1.0, 1.0, 1.0])/16
-			else:
-				pixels[i//4, j//4] += ti.Vector([1.0, 0.0, 0.0])/16
-		else:
-			pixels[i//4, j//4] += ti.Vector([1.0, 1.0, 1.0])/16
+	# for i, j in ti.ndrange(4*n, 4*n):
+	# 	d = ti.Vector([i/4*dx, j/4*dx]) - center
+	# 	if d.norm_sqr() < 0.1:
+	# 		x = i/4*dx
+	# 		if x < 1/3:
+	# 			colors[i//4, j//4] += ti.Vector([0.0, 0.0, 0.0])/16
+	# 		elif x < 2/3:
+	# 			colors[i//4, j//4] += ti.Vector([1.0, 1.0, 1.0])/16
+	# 		else:
+	# 			colors[i//4, j//4] += ti.Vector([1.0, 0.0, 0.0])/16
+	# 	else:
+	# 		colors[i//4, j//4] += ti.Vector([1.0, 1.0, 1.0])/16
+
+	# random
+	for i in ti.grouped(colors):
+		colors[i] = ti.Vector([ti.random(), ti.random(), ti.random()])
+
+
+@ti.kernel
+def init_velocity_field():
+	# rotation
+	for i in ti.grouped(velocities):
+		p = (i + stagger) * dx
+		# velocities[i] = ti.Vector([p.y-center.y, center.x-p.x])
+		velocities[i] = ti.Vector([0.0, 0.0])
+		
 
 
 @ti.func
 def clamp(p):
-	# clamp p to [0.5/n, 1-1/n+0.5/n), i.e. clamp cell index to [0, n-1)
+	# clamp p to [0.5*dx, 1-dx+0.5*dx), i.e. clamp cell index to [0, n-1)
 	for d in ti.static(range(p.n)):
-		p[d] = min(1 - 1/n + stagger[d]/n - 1e-4, max(p[d], stagger[d]/n))
+		p[d] = min(1 - dx + stagger[d]*dx - 1e-4, max(p[d], stagger[d]*dx))
 	return p
 
 @ti.func
-def sample_bilinear(pixels, p):
+def sample_bilinear(field, p):
 
 	p = clamp(p)
 
@@ -76,10 +100,10 @@ def sample_bilinear(pixels, p):
 
 	d = grid_f - grid_i
 	
-	return pixels[ grid_i ] * (1-d.x)*(1-d.y) + pixels[ grid_i+I(1, 0) ] * d.x*(1-d.y) + pixels[ grid_i+I(0, 1) ] * (1-d.x)*d.y + pixels[ grid_i+I(1, 1) ] * d.x*d.y
+	return field[ grid_i ] * (1-d.x)*(1-d.y) + field[ grid_i+I(1, 0) ] * d.x*(1-d.y) + field[ grid_i+I(0, 1) ] * (1-d.x)*d.y + field[ grid_i+I(1, 1) ] * d.x*d.y
 
 @ti.func
-def sample_min(pixels, p):
+def sample_min(field, p):
 
 	p = clamp(p)
 
@@ -90,12 +114,12 @@ def sample_min(pixels, p):
 	color = ti.Vector([0.0, 0.0, 0.0])
 
 	for d in ti.static(range(color.n)):
-		color[d] = min( pixels[ grid_i ][d], pixels[ grid_i+I(1, 0) ][d], pixels[ grid_i+I(0, 1) ][d], pixels[ grid_i+I(1, 1) ][d] )
+		color[d] = min( field[ grid_i ][d], field[ grid_i+I(1, 0) ][d], field[ grid_i+I(0, 1) ][d], field[ grid_i+I(1, 1) ][d] )
 
 	return color
 
 @ti.func
-def sample_max(pixels, p):
+def sample_max(field, p):
 
 	p = clamp(p)
 
@@ -105,7 +129,7 @@ def sample_max(pixels, p):
 	color = ti.Vector([0.0, 0.0, 0.0])
 
 	for d in ti.static(range(color.n)):
-		color[d] = max( pixels[ grid_i ][d], pixels[ grid_i+I(1, 0) ][d], pixels[ grid_i+I(0, 1) ][d], pixels[ grid_i+I(1, 1) ][d] )
+		color[d] = max( field[ grid_i ][d], field[ grid_i+I(1, 0) ][d], field[ grid_i+I(0, 1) ][d], field[ grid_i+I(1, 1) ][d] )
 
 	return color
 
@@ -128,50 +152,60 @@ def backtrace(p, dt):
 
 
 @ti.func
-def semi_lagrangian(pixels, new_pixels, dt):
-	for i in ti.grouped(pixels):
-		p = (i + stagger) / n
-		new_pixels[i] = sample_bilinear(pixels, backtrace(p, dt))
+def semi_lagrangian(field, new_field, dt):
+	for i in ti.grouped(field):
+		p = (i + stagger) * dx
+		new_field[i] = sample_bilinear(field, backtrace(p, dt))
 
 
 
 @ti.func
-def BFECC():
+def BFECC(field, new_field, new_new_field, dt):
 	
-	semi_lagrangian(pixels, new_pixels, dt)
-	semi_lagrangian(new_pixels, new_new_pixels, -dt)
+	semi_lagrangian(field, new_field, dt)
+	semi_lagrangian(new_field, new_new_field, -dt)
 
-	for i in ti.grouped(pixels):
+	for i in ti.grouped(field):
 		
-		new_pixels[i] = new_pixels[i] - 0.5 * (new_new_pixels[i] - pixels[i])
+		new_field[i] = new_field[i] - 0.5 * (new_new_field[i] - field[i])
 
 		if ti.static(enable_clipping):
 			
-			source_pos = backtrace( (i + stagger) / n, dt )
-			mi = sample_min(pixels, source_pos)
-			mx = sample_max(pixels, source_pos)
+			source_pos = backtrace( (i + stagger) * dx, dt )
+			mi = sample_min(field, source_pos)
+			mx = sample_max(field, source_pos)
 
-			if new_pixels[i].x < mi.x or new_pixels[i].y < mi.y or new_pixels[i].z < mi.z or new_pixels[i].x > mx.x or new_pixels[i].y > mx.y or new_pixels[i].z > mx.z:
-				new_pixels[i] = sample_bilinear(pixels, source_pos)
+			if new_field[i].x < mi.x or new_field[i].y < mi.y or new_field[i].z < mi.z or new_field[i].x > mx.x or new_field[i].y > mx.y or new_field[i].z > mx.z:
+				new_field[i] = sample_bilinear(field, source_pos)
 				
 				# runtime error
 				# break
 
+@ti.func
+def jacobi_():
 
+
+@ti.func
+def solve_pressure():
+	for i, j in velocities:
+		lap = 
+		pressures[i, j] = 
 
 @ti.kernel
-def advect():
+def advect(field:ti.template(), new_field:ti.template(), new_new_field:ti.template(), dt:ti.f32):
+
 	if ti.static(enable_BFECC):
-		BFECC()
+		BFECC(field, new_field, new_new_field, dt)
 	else:
-		semi_lagrangian(pixels, new_pixels, dt)
+		semi_lagrangian(field, new_field, dt)
 		
-	for i in ti.grouped(pixels):
-		pixels[i] = new_pixels[i]
+	for i in ti.grouped(field):
+		field[i] = new_field[i]
 
 
 
-init_image()
+init_color_field()
+init_velocity_field()
 
 
 gui = ti.GUI("Fluid 2D", (n, n))
@@ -182,10 +216,11 @@ gui = ti.GUI("Fluid 2D", (n, n))
 
 for frame in range(300000):
 	
-	advect()
+	advect(colors, new_colors, new_new_colors, dt)
+	advect(velocities, new_velocities, new_new_velocities, dt)
 	# time.sleep(1)
 
-	gui.set_image(pixels)
+	gui.set_image(colors)
 
 	gui.text(content=f'RK {RK}', pos=(0, 0.98), color=0x0)
 	if enable_BFECC: 
@@ -195,6 +230,6 @@ for frame in range(300000):
 	
 	gui.show()
 
-	# video_manager.write_frame(pixels.to_numpy())
+	# video_manager.write_frame(colors.to_numpy())
 
 # video_manager.make_video(gif=True, mp4=True)
