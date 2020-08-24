@@ -1,10 +1,10 @@
 import taichi as ti
-import numpy
+import numpy as np
 import time
 
 
 
-ti.init(arch=ti.cpu)
+ti.init(arch=ti.gpu)
 
 
 n = 400
@@ -31,6 +31,7 @@ new_velocities = ti.Vector(2, dt=ti.f32, shape=(n, n))
 new_new_velocities = ti.Vector(2, dt=ti.f32, shape=(n, n))
 
 pressures = ti.var(dt=ti.f32, shape=(n, n))
+new_pressures = ti.var(dt=ti.f32, shape=(n, n))
 
 
 # screen center. The simualation area is (0, 0) to (1, 1)
@@ -78,7 +79,9 @@ def init_velocity_field():
 	# rotation
 	for i in ti.grouped(velocities):
 		p = (i + stagger) * dx
-		# velocities[i] = ti.Vector([p.y-center.y, center.x-p.x])
+		d = p - center
+		# if d.norm_sqr() < 0.2:
+			# velocities[i] = ti.Vector([p.y-center.y, center.x-p.x])
 		velocities[i] = ti.Vector([0.0, 0.0])
 		
 
@@ -181,16 +184,6 @@ def BFECC(field, new_field, new_new_field, dt):
 				# runtime error
 				# break
 
-@ti.func
-def jacobi_():
-
-
-@ti.func
-def solve_pressure():
-	for i, j in velocities:
-		lap = 
-		pressures[i, j] = 
-
 @ti.kernel
 def advect(field:ti.template(), new_field:ti.template(), new_new_field:ti.template(), dt:ti.f32):
 
@@ -201,6 +194,92 @@ def advect(field:ti.template(), new_field:ti.template(), new_new_field:ti.templa
 		
 	for i in ti.grouped(field):
 		field[i] = new_field[i]
+
+
+@ti.kernel
+def jacobi():
+	for i, j in velocities:
+		# c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
+		c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
+		# l = c - ti.Vector([1, 0])
+		# r = c + ti.Vector([1, 0])
+		# d = c - ti.Vector([0, 1])
+		# u = c + ti.Vector([0, 1])		
+		l = c - ti.Vector([stagger.x, 0])
+		r = c + ti.Vector([stagger.x, 0])
+		d = c - ti.Vector([0, stagger.y])
+		u = c + ti.Vector([0, stagger.y])
+
+		v_c = sample_bilinear(velocities, c)
+		v_l = sample_bilinear(velocities, l).x
+		v_r = sample_bilinear(velocities, r).x
+		v_d = sample_bilinear(velocities, d).y
+		v_u = sample_bilinear(velocities, u).y
+
+		# p_c = sample_bilinear(pressures, c)
+		p_l = sample_bilinear(pressures, l)
+		p_r = sample_bilinear(pressures, r)
+		p_d = sample_bilinear(pressures, d)
+		p_u = sample_bilinear(pressures, u)
+
+		k = 4
+		if i == 0: 
+			v_l = -v_c.x
+			p_l = 0.0
+			k -= 1
+		if i == n-1:
+			v_r = -v_c.x
+			p_r = 0.0
+			k -= 1
+		if j == 0:
+			v_d = -v_c.y
+			p_d = 0.0
+			k -= 1
+		if j == n-1:
+			v_u = -v_c.y
+			p_u = 0.0
+			k -= 1
+
+		div = (v_r - v_l + v_u - v_d) * rho / dt * dx * 0.25
+
+		pressures[i, j] = (p_l + p_r + p_d + p_u - div) / k
+
+
+def solve_pressure(num_iter):
+	for i in range(num_iter):
+		jacobi()
+
+
+@ti.kernel
+def projection():
+	for i, j in velocities:
+		c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
+		l = c - ti.Vector([stagger.x, 0])
+		r = c + ti.Vector([stagger.x, 0])
+		d = c - ti.Vector([0, stagger.y])
+		u = c + ti.Vector([0, stagger.y])
+		p_l = sample_bilinear(pressures, l)
+		p_r = sample_bilinear(pressures, r)
+		p_d = sample_bilinear(pressures, d)
+		p_u = sample_bilinear(pressures, u)
+
+		velocities[i, j] -=  ti.Vector([p_r - p_l, p_u - p_d]) / dx * dt / rho
+
+@ti.kernel
+def apply_force(pre_mouse_pos:ti.ext_arr(), cur_mouse_pos:ti.ext_arr()):
+
+	p = ti.Vector([cur_mouse_pos[0], cur_mouse_pos[1]])
+	pre_p = ti.Vector([pre_mouse_pos[0], pre_mouse_pos[1]])
+
+	dp = p - pre_p
+	dp = dp / max(1e-5, dp.norm())
+
+	for i, j in velocities:
+
+
+		d2 = (ti.Vector([(i+stagger.x)*dx, (j+stagger.y)*dx]) - p).norm_sqr()
+
+		velocities[i, j] += dp * dt * ti.exp(-d2/0.01)
 
 
 
@@ -214,11 +293,36 @@ gui = ti.GUI("Fluid 2D", (n, n))
 # result_dir = "./fluid_2d"
 # video_manager = ti.VideoManager(output_dir=result_dir, framerate=30, automatic_build=False)
 
-for frame in range(300000):
-	
+pre_mouse_pos = None
+cur_mouse_pos = None
+
+
+for frame in range(30000):
+# while gui.running:	
 	advect(colors, new_colors, new_new_colors, dt)
 	advect(velocities, new_velocities, new_new_velocities, dt)
 	# time.sleep(1)
+
+
+	gui.get_event(ti.GUI.PRESS)
+
+	if gui.is_pressed(ti.GUI.LMB):
+		pre_mouse_pos = cur_mouse_pos
+		cur_mouse_pos = np.array(gui.get_cursor_pos(), dtype=np.float32)
+		if pre_mouse_pos is None:
+			pre_mouse_pos = cur_mouse_pos
+	else:
+		pre_mouse_pos = cur_mouse_pos = None
+
+	if pre_mouse_pos is not None: 
+		print(pre_mouse_pos, cur_mouse_pos)
+		apply_force(pre_mouse_pos, cur_mouse_pos)
+
+
+
+	solve_pressure(200)
+
+	projection()
 
 	gui.set_image(colors)
 
