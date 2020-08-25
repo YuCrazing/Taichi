@@ -7,11 +7,11 @@ import time
 ti.init(arch=ti.gpu)
 
 
-n = 400
+n = 512
 dt = 0.05
 dx = 1/n
 
-rho = 10
+rho = 1
 
 # 1, 2, 3
 RK = 3
@@ -72,6 +72,7 @@ def init_color_field():
 	# random
 	for i in ti.grouped(colors):
 		colors[i] = ti.Vector([ti.random(), ti.random(), ti.random()])
+		# colors[i] = ti.Vector([0.0, 0.0, 0.0])
 
 
 @ti.kernel
@@ -201,14 +202,14 @@ def jacobi():
 	for i, j in velocities:
 		# c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
 		c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
-		# l = c - ti.Vector([1, 0])
-		# r = c + ti.Vector([1, 0])
-		# d = c - ti.Vector([0, 1])
-		# u = c + ti.Vector([0, 1])		
-		l = c - ti.Vector([stagger.x, 0])
-		r = c + ti.Vector([stagger.x, 0])
-		d = c - ti.Vector([0, stagger.y])
-		u = c + ti.Vector([0, stagger.y])
+		# l = c - ti.Vector([1, 0]) * dx
+		# r = c + ti.Vector([1, 0]) * dx
+		# d = c - ti.Vector([0, 1]) * dx
+		# u = c + ti.Vector([0, 1]) * dx
+		l = c - ti.Vector([stagger.x, 0]) * dx
+		r = c + ti.Vector([stagger.x, 0]) * dx
+		d = c - ti.Vector([0, stagger.y]) * dx
+		u = c + ti.Vector([0, stagger.y]) * dx
 
 		v_c = sample_bilinear(velocities, c)
 		v_l = sample_bilinear(velocities, l).x
@@ -222,27 +223,39 @@ def jacobi():
 		p_d = sample_bilinear(pressures, d)
 		p_u = sample_bilinear(pressures, u)
 
+		
+		div_v = (v_r - v_l + v_u - v_d) / dx
+
 		k = 4
 		if i == 0: 
 			v_l = -v_c.x
+			# div_v = (v_r - v_c.x) / (dx/2) + (v_u - v_d) / dx
 			p_l = 0.0
 			k -= 1
 		if i == n-1:
 			v_r = -v_c.x
+			# div_v = (v_c.x - v_l) / (dx/2) + (v_u - v_d) / dx
 			p_r = 0.0
 			k -= 1
 		if j == 0:
 			v_d = -v_c.y
+			# div_v = (v_r - v_l) / dx + (v_u - v_c.y) / (dx/2)
 			p_d = 0.0
 			k -= 1
 		if j == n-1:
 			v_u = -v_c.y
+			# div_v = (v_r - v_l) / dx + (v_c.y - v_d) / (dx/2)
 			p_u = 0.0
 			k -= 1
 
-		div = (v_r - v_l + v_u - v_d) * rho / dt * dx * 0.25
+		div_v = (v_r - v_l + v_u - v_d) / dx
 
-		pressures[i, j] = (p_l + p_r + p_d + p_u - div) / k
+
+
+		new_pressures[i, j] = ( p_l + p_r + p_d + p_u - div_v * rho / dt * (dx*dx /4) ) / k
+
+	for i in ti.grouped(pressures):
+		pressures[i] = new_pressures[i]
 
 
 def solve_pressure(num_iter):
@@ -254,16 +267,28 @@ def solve_pressure(num_iter):
 def projection():
 	for i, j in velocities:
 		c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
-		l = c - ti.Vector([stagger.x, 0])
-		r = c + ti.Vector([stagger.x, 0])
-		d = c - ti.Vector([0, stagger.y])
-		u = c + ti.Vector([0, stagger.y])
+		l = c - ti.Vector([stagger.x, 0]) * dx
+		r = c + ti.Vector([stagger.x, 0]) * dx
+		d = c - ti.Vector([0, stagger.y]) * dx
+		u = c + ti.Vector([0, stagger.y]) * dx
+		p_c = sample_bilinear(pressures, c)
 		p_l = sample_bilinear(pressures, l)
 		p_r = sample_bilinear(pressures, r)
 		p_d = sample_bilinear(pressures, d)
 		p_u = sample_bilinear(pressures, u)
 
-		velocities[i, j] -=  ti.Vector([p_r - p_l, p_u - p_d]) / dx * dt / rho
+		grad_p = ti.Vector([p_r - p_l, p_u - p_d]) / dx
+
+		if i == 0:
+			grad_p.x = (p_r - p_c) / (dx/2)
+		if i == n-1:
+			grad_p.x = (p_c - p_l) / (dx/2)
+		if j == 0:
+			grad_p.y = (p_u - p_c) / (dx/2)
+		if j == n-1:
+			grad_p.y = (p_c - p_d) / (dx/2)
+
+		velocities[i, j] -=  grad_p  / rho * dt
 
 @ti.kernel
 def apply_force(pre_mouse_pos:ti.ext_arr(), cur_mouse_pos:ti.ext_arr()):
@@ -279,7 +304,8 @@ def apply_force(pre_mouse_pos:ti.ext_arr(), cur_mouse_pos:ti.ext_arr()):
 
 		d2 = (ti.Vector([(i+stagger.x)*dx, (j+stagger.y)*dx]) - p).norm_sqr()
 
-		velocities[i, j] += dp * dt * ti.exp(-d2/0.01)
+		# colors[i, j] = ti.Vector([0.1, 0.1, 0.1]) * ti.exp(-d2/0.01) * 10
+		velocities[i, j] += dp * dt * ti.exp(-d2/0.01) * 10
 
 
 
@@ -301,7 +327,7 @@ for frame in range(30000):
 # while gui.running:	
 	advect(colors, new_colors, new_new_colors, dt)
 	advect(velocities, new_velocities, new_new_velocities, dt)
-	# time.sleep(1)
+	# # time.sleep(1)
 
 
 	gui.get_event(ti.GUI.PRESS)
@@ -311,6 +337,7 @@ for frame in range(30000):
 		cur_mouse_pos = np.array(gui.get_cursor_pos(), dtype=np.float32)
 		if pre_mouse_pos is None:
 			pre_mouse_pos = cur_mouse_pos
+		apply_force(pre_mouse_pos, cur_mouse_pos)
 	else:
 		pre_mouse_pos = cur_mouse_pos = None
 
@@ -320,7 +347,7 @@ for frame in range(30000):
 
 
 
-	solve_pressure(200)
+	solve_pressure(250)
 
 	projection()
 
