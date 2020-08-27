@@ -20,7 +20,7 @@ RK = 3
 enable_BFECC = True
 
 #
-enable_clipping = False
+enable_clipping = True
 
 colors = ti.Vector(3, dt=ti.f32, shape=(n, n))
 new_colors = ti.Vector(3, dt=ti.f32, shape=(n, n))
@@ -71,8 +71,8 @@ def init_color_field():
 
 	# random
 	for i in ti.grouped(colors):
-		colors[i] = ti.Vector([ti.random(), ti.random(), ti.random()])
-		# colors[i] = ti.Vector([0.0, 0.0, 0.0])
+		# colors[i] = ti.Vector([ti.random(), ti.random(), ti.random()])
+		colors[i] = ti.Vector([0.0, 0.0, 0.0])
 
 
 @ti.kernel
@@ -114,13 +114,8 @@ def sample_min(field, p):
 	grid_f = p * n - stagger
 	grid_i = ti.cast(ti.floor(grid_f), ti.i32)
 	
+	return min( field[ grid_i ], field[ grid_i+I(1, 0) ], field[ grid_i+I(0, 1) ], field[ grid_i+I(1, 1) ] )
 
-	color = ti.Vector([0.0, 0.0, 0.0])
-
-	for d in ti.static(range(color.n)):
-		color[d] = min( field[ grid_i ][d], field[ grid_i+I(1, 0) ][d], field[ grid_i+I(0, 1) ][d], field[ grid_i+I(1, 1) ][d] )
-
-	return color
 
 @ti.func
 def sample_max(field, p):
@@ -130,12 +125,8 @@ def sample_max(field, p):
 	grid_f = p * n - stagger
 	grid_i = ti.cast(ti.floor(grid_f), ti.i32)
 	
-	color = ti.Vector([0.0, 0.0, 0.0])
+	return max( field[ grid_i ], field[ grid_i+I(1, 0) ], field[ grid_i+I(0, 1) ], field[ grid_i+I(1, 1) ] )
 
-	for d in ti.static(range(color.n)):
-		color[d] = max( field[ grid_i ][d], field[ grid_i+I(1, 0) ][d], field[ grid_i+I(0, 1) ][d], field[ grid_i+I(1, 1) ][d] )
-
-	return color
 
 @ti.func
 def backtrace(p, dt):
@@ -179,8 +170,12 @@ def BFECC(field, new_field, new_new_field, dt):
 			mi = sample_min(field, source_pos)
 			mx = sample_max(field, source_pos)
 
-			if new_field[i].x < mi.x or new_field[i].y < mi.y or new_field[i].z < mi.z or new_field[i].x > mx.x or new_field[i].y > mx.y or new_field[i].z > mx.z:
-				new_field[i] = sample_bilinear(field, source_pos)
+			for d in ti.static(range(mi.n)):
+				if new_field[i][d] < mi[d] or new_field[i][d] > mx[d]:
+					new_field[i] = sample_bilinear(field, source_pos)
+
+			# if new_field[i].x < mi.x or new_field[i].y < mi.y or new_field[i].z < mi.z or new_field[i].x > mx.x or new_field[i].y > mx.y or new_field[i].z > mx.z:
+			# 	new_field[i] = sample_bilinear(field, source_pos)
 				
 				# runtime error
 				# break
@@ -230,23 +225,23 @@ def jacobi():
 		if i == 0: 
 			v_l = -v_c.x
 			# div_v = (v_r - v_c.x) / (dx/2) + (v_u - v_d) / dx
-			p_l = 0.0
-			k -= 1
+			# p_l = 0.0
+			# k -= 1
 		if i == n-1:
 			v_r = -v_c.x
 			# div_v = (v_c.x - v_l) / (dx/2) + (v_u - v_d) / dx
-			p_r = 0.0
-			k -= 1
+			# p_r = 0.0
+			# k -= 1
 		if j == 0:
 			v_d = -v_c.y
 			# div_v = (v_r - v_l) / dx + (v_u - v_c.y) / (dx/2)
-			p_d = 0.0
-			k -= 1
+			# p_d = 0.0
+			# k -= 1
 		if j == n-1:
 			v_u = -v_c.y
 			# div_v = (v_r - v_l) / dx + (v_c.y - v_d) / (dx/2)
-			p_u = 0.0
-			k -= 1
+			# p_u = 0.0
+			# k -= 1
 
 		div_v = (v_r - v_l + v_u - v_d) / dx
 
@@ -279,16 +274,18 @@ def projection():
 
 		grad_p = ti.Vector([p_r - p_l, p_u - p_d]) / dx
 
-		if i == 0:
-			grad_p.x = (p_r - p_c) / (dx/2)
-		if i == n-1:
-			grad_p.x = (p_c - p_l) / (dx/2)
-		if j == 0:
-			grad_p.y = (p_u - p_c) / (dx/2)
-		if j == n-1:
-			grad_p.y = (p_c - p_d) / (dx/2)
+		# if i == 0:
+		# 	grad_p.x = (p_r - p_c) / (dx/2)
+		# if i == n-1:
+		# 	grad_p.x = (p_c - p_l) / (dx/2)
+		# if j == 0:
+		# 	grad_p.y = (p_u - p_c) / (dx/2)
+		# if j == n-1:
+		# 	grad_p.y = (p_c - p_d) / (dx/2)
 
 		velocities[i, j] -=  grad_p  / rho * dt
+
+	# print(velocities[0, 0], colors[0, 0])
 
 @ti.kernel
 def apply_force(pre_mouse_pos:ti.ext_arr(), cur_mouse_pos:ti.ext_arr()):
@@ -304,8 +301,14 @@ def apply_force(pre_mouse_pos:ti.ext_arr(), cur_mouse_pos:ti.ext_arr()):
 
 		d2 = (ti.Vector([(i+stagger.x)*dx, (j+stagger.y)*dx]) - p).norm_sqr()
 
-		# colors[i, j] = ti.Vector([0.1, 0.1, 0.1]) * ti.exp(-d2/0.01) * 10
-		velocities[i, j] += dp * dt * ti.exp(-d2/0.01) * 10
+		# if mdir.norm() > 0.5:
+		colors[i, j] += ti.exp(-d2 * (4 / (1 / 15)**2)) * ti.Vector([0.1, 0.1, 0.1])
+
+		# colors[i, j] += ti.Vector([0.1, 0.1, 0.1]) * ti.exp(-d2/0.01) 
+		colors[i, j] *= 0.99
+		velocities[i, j] += dp * dt * ti.exp(-d2/0.01) * 10 
+
+
 
 
 
@@ -325,8 +328,9 @@ cur_mouse_pos = None
 
 for frame in range(30000):
 # while gui.running:	
-	advect(colors, new_colors, new_new_colors, dt)
 	advect(velocities, new_velocities, new_new_velocities, dt)
+
+	advect(colors, new_colors, new_new_colors, dt)
 	# # time.sleep(1)
 
 
@@ -342,7 +346,7 @@ for frame in range(30000):
 		pre_mouse_pos = cur_mouse_pos = None
 
 	if pre_mouse_pos is not None: 
-		print(pre_mouse_pos, cur_mouse_pos)
+		# print(pre_mouse_pos, cur_mouse_pos)
 		apply_force(pre_mouse_pos, cur_mouse_pos)
 
 
