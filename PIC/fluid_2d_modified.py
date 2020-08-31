@@ -24,7 +24,7 @@ rho = 1
 jacobi_iters = 300
 
 
-m_g = 64
+m_g = 32
 m_p = 128
 n_grid = m_g*m_g
 n_particle = m_p*m_p
@@ -124,7 +124,7 @@ def sample_bilinear(field, p):
 @ti.kernel
 def init_grid():
 	for i, j in types:
-		if i <= 1 or i >= m_g-2 or j <=1 or j >= m_g-2:
+		if i <= 1 or i >= m_g-2 or j <= 1 or j >= m_g-2:
 			types[i, j] = SOLID
 
 
@@ -132,7 +132,7 @@ def init_grid():
 def init_particle():
 	for i in particle_position:
 		particle_position[i] = ti.Vector([i%m_p / m_p / 2, i//m_p / m_p / 2]) + ti.Vector([0.1, 0.25])
-		# particle_position[i] = ti.Vecxtor([ti.random(), ti.random()])
+		# particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 0.5 + ti.Vector([0.1, 0.25])
 
 
 # @ti.kernel
@@ -152,7 +152,7 @@ def particle_to_grid():
 		weights[k] = 0.0
 		velocities[k] += ti.Vector([0.0, -9.8]) * dt
 
-		pressures[k] = 0.0
+		# pressures[k] = 0.0
 
 		if types[k] != SOLID:
 			types[k] = AIR
@@ -171,21 +171,43 @@ def particle_to_grid():
 		# quadratic B-spline
 		w = [0.5 * (1.5-fx)**2, 0.75 - (fx-1)**2, 0.5 * (fx-0.5)**2]
 
+		# print(w)
+
 		for i in ti.static(range(3)):
 			for j in ti.static(range(3)):
 				offset = ti.Vector([i, j])
 				weight = w[i][0] * w[j][1]
-				velocities[base + offset] += weight * particle_velocity[k]
-				weights[base + offset] += weight 
+				# print(weight)
+				grid_idx = base + offset
+				velocities[grid_idx] += weight * particle_velocity[k]
+				weights[grid_idx] += weight
+				# if types[grid_idx] != SOLID:
+				# 	types[grid_idx] = FLUID
 
+	# mx = 0.0
+	# mi = 1e20
+	# c = 0
 	for k in ti.grouped(weights):
 		weight = weights[k]
-		if weight > 0:
+		# mx = max(mx, weight)
+		# mi = min(mi, weight)
+		if weight > 0 and weight < eps:
+			print(weight)
+		if weight > eps:
+			# c += 1
+			tv = velocities[k]
 			velocities[k] = velocities[k] / weight
-			# if types[k] != FLUID:
-			# 	velocities[k] = ti.Vector([0.0, 0.0])
-			# 	weights[k] = 0.0
-			# print(k.x, k.y, velocities[k])
+			# if tv.norm() < 1e4 and velocities[k].norm() > 1e7:
+			# 	print(tv, velocities[k])
+		# elif weight > 0:
+		# 	print(weight)
+		# 	if types[k] != FLUID:
+		# 		velocities[k] = ti.Vector([0.0, 0.0])
+		# 		weights[k] = 0.0
+		# 	print(k.x, k.y, velocities[k])
+
+	# print(mx, mi, c)
+
 
 @ti.kernel
 def solve_divergence():
@@ -193,12 +215,12 @@ def solve_divergence():
 	for k in ti.grouped(divergences):
 		# if types[k] != FLUID:
 		divergences[k] = 0.0
-		pressures[k] = 0.0
+		# pressures[k] = 0.0
 
 
 
 	for i, j in velocities:
-		if types[i, j] == FLUID:
+		if types[i, j] != SOLID:
 			c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
 			l = c - ti.Vector([0.5, 0]) * dx
 			r = c + ti.Vector([0.5, 0]) * dx
@@ -235,7 +257,7 @@ def solve_divergence():
 def pressure_jacobi(pressures:ti.template(), new_pressures:ti.template()):
 
 	for i, j in velocities:
-		if types[i, j] == FLUID:
+		if types[i, j] != SOLID:
 			c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
 			l = c - ti.Vector([0.5, 0]) * dx
 			r = c + ti.Vector([0.5, 0]) * dx
@@ -270,14 +292,15 @@ def pressure_jacobi(pressures:ti.template(), new_pressures:ti.template()):
 			if types[i, j+1] == AIR:
 				p_u = 0.0
 
-			new_pressures[i, j] = 1/3 * pressures[i, j] + 2/3 *  ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx/4) ) / k
+			# new_pressures[i, j] = 1/3 * pressures[i, j] + 2/3 *  ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx/4) ) / k
+			new_pressures[i, j] =  ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx/4) ) / k
 
 
 
 @ti.kernel
 def projection():
 	for i, j in velocities:
-		if types[i, j] == FLUID:
+		if types[i, j] != SOLID:
 			c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
 			l = c - ti.Vector([0.5, 0]) * dx
 			r = c + ti.Vector([0.5, 0]) * dx
@@ -383,6 +406,7 @@ def grid_to_particle():
 		particle_position[k] = new_p
 
 		particle_velocity[k] = new_v
+	# print(particle_velocity[0])
 
 
 
@@ -444,7 +468,7 @@ for frame in range(450000):
 	# if frame <= 42:
 		# test()
 
-	# time.sleep(1)
+	time.sleep(0.2)
 
 	# break
 	if debug:

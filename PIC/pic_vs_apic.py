@@ -51,6 +51,8 @@ def substep_PIC():
         for i in ti.static(range(3)):
             for j in ti.static(range(3)):
                 weight = w[i][0] * w[j][1]
+                if weight > 0  and weight < 1e-5:
+                    print(weight)
                 new_v += weight * grid_v[base + ti.Vector([i, j])]
 
         x[p] = clamp_pos(x[p] + v[p] * dt)
@@ -69,6 +71,8 @@ def substep_APIC():
                 offset = ti.Vector([i, j])
                 dpos = (offset.cast(float) - fx) * dx
                 weight = w[i][0] * w[j][1]
+                if weight > 0  and weight < 1e-5:
+                    print(weight)
                 grid_v[base + offset] += weight * (v[p] + affine @ dpos)
                 grid_m[base + offset] += weight
     
