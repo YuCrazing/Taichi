@@ -150,12 +150,11 @@ def particle_to_grid():
 	for k in ti.grouped(velocities):
 		velocities[k] = ti.Vector([0.0, 0.0])
 		weights[k] = 0.0
-		velocities[k] += ti.Vector([0.0, -9.8]) * dt
-
 		pressures[k] = 0.0
 
 		if types[k] != SOLID:
 			types[k] = AIR
+			velocities[k] += ti.Vector([0.0, -9.8]) * dt
 
 	for k in particle_velocity:
 		p = particle_position[k]

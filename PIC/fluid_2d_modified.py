@@ -20,12 +20,12 @@ enable_BFECC = True
 enable_clipping = True
 
 
-rho = 1
+rho = 1000
 jacobi_iters = 300
 
 
 m_g = 32
-m_p = 128
+m_p = 50
 n_grid = m_g*m_g
 n_particle = m_p*m_p
 
@@ -34,7 +34,7 @@ dx = 1/m_g
 
 eps = 1e-5
 
-debug = False
+debug = True
 
 
 
@@ -76,16 +76,16 @@ center = ti.Vector([0.5, 0.5])
 stagger = ti.Vector([0.5, 0.5])
 
 
-@ti.func
-def I(i, j):
-	return ti.Vector([i, j])
+# @ti.func
+# def I(i, j):
+# 	return ti.Vector([i, j])
 
 
-@ti.func
-def vel(p):
-	# rotation
-	# return ti.Vector([p.y-center.y, center.x-p.x])
-	return sample_bilinear(velocities, p)
+# @ti.func
+# def vel(p):
+# 	# rotation
+# 	# return ti.Vector([p.y-center.y, center.x-p.x])
+# 	return sample_bilinear(velocities, p)
 
 
 
@@ -101,24 +101,24 @@ def vel(p):
 		
 
 
-@ti.func
-def clamp(p):
-	# clamp p to [0.5*dx, 1-dx+0.5*dx), i.e. clamp cell index to [0, n-1)
-	for d in ti.static(range(p.n)):
-		p[d] = min(1 - dx + stagger[d]*dx - 1e-4, max(p[d], stagger[d]*dx))
-	return p
+# @ti.func
+# def clamp(p):
+# 	# clamp p to [0.5*dx, 1-dx+0.5*dx), i.e. clamp cell index to [0, n-1)
+# 	for d in ti.static(range(p.n)):
+# 		p[d] = min(1 - dx + stagger[d]*dx - 1e-4, max(p[d], stagger[d]*dx))
+# 	return p
 
-@ti.func
-def sample_bilinear(field, p):
+# @ti.func
+# def sample_bilinear(field, p):
 
-	p = clamp(p)
+# 	p = clamp(p)
 
-	grid_f = p * m_g - stagger
-	grid_i = ti.cast(ti.floor(grid_f), ti.i32)
+# 	grid_f = p * m_g - stagger
+# 	grid_i = ti.cast(ti.floor(grid_f), ti.i32)
 
-	d = grid_f - grid_i
+# 	d = grid_f - grid_i
 	
-	return field[ grid_i ] * (1-d.x)*(1-d.y) + field[ grid_i+I(1, 0) ] * d.x*(1-d.y) + field[ grid_i+I(0, 1) ] * (1-d.x)*d.y + field[ grid_i+I(1, 1) ] * d.x*d.y
+# 	return field[ grid_i ] * (1-d.x)*(1-d.y) + field[ grid_i+I(1, 0) ] * d.x*(1-d.y) + field[ grid_i+I(0, 1) ] * (1-d.x)*d.y + field[ grid_i+I(1, 1) ] * d.x*d.y
 
 
 @ti.kernel
@@ -131,8 +131,8 @@ def init_grid():
 @ti.kernel
 def init_particle():
 	for i in particle_position:
-		particle_position[i] = ti.Vector([i%m_p / m_p / 2, i//m_p / m_p / 2]) + ti.Vector([0.1, 0.25])
-		# particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 0.5 + ti.Vector([0.1, 0.25])
+		# particle_position[i] = ti.Vector([i%m_p / m_p / 2, i//m_p / m_p / 2]) + ti.Vector([0.1, 0.25])
+		particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 0.5 + ti.Vector([0.1, 0.25])
 
 
 # @ti.kernel
@@ -150,12 +150,15 @@ def particle_to_grid():
 	for k in ti.grouped(velocities):
 		velocities[k] = ti.Vector([0.0, 0.0])
 		weights[k] = 0.0
-		velocities[k] += ti.Vector([0.0, -9.8]) * dt
+		divergences[k] = 0.0
+		pressures[k] = 0.0
+		new_pressures[k] = 0.0
 
 		# pressures[k] = 0.0
 
 		if types[k] != SOLID:
 			types[k] = AIR
+			velocities[k] += ti.Vector([0.0, -9.8]) * dt
 
 	for k in particle_velocity:
 		p = particle_position[k]
@@ -171,14 +174,14 @@ def particle_to_grid():
 		fx = p_g - base.cast(float)
 		# quadratic B-spline
 		# w = [0.5 * (1.5-fx)**2, 0.75 - (fx-1)**2, 0.5 * (fx-0.5)**2]
-		w = [0.5 * (1.5-(fx-0.5))**2, 0.75 - (abs(fx-1.5))**2, 0.5 * (1.5-(2.5-fx))**2]
+		w = [0.5 * (1.5-(fx-0.5))**2, 0.75 - (ti.abs(fx-1.5))**2, 0.5 * (1.5-(2.5-fx))**2]
 
 		# print(w)
 
-		for i in ti.static(range(-1, 2)):
-			for j in ti.static(range(-1, 2)):
+		for i in ti.static(range(3)):
+			for j in ti.static(range(3)):
 				offset = ti.Vector([i, j])
-				weight = w[i+1][0] * w[j+1][1]
+				weight = w[i][0] * w[j][1]
 				# print(weight)
 				grid_idx = base + offset
 				velocities[grid_idx] += weight * particle_velocity[k]
@@ -193,9 +196,13 @@ def particle_to_grid():
 		weight = weights[k]
 		# mx = max(mx, weight)
 		# mi = min(mi, weight)
-		if weight > 0 and weight < eps:
-			print(weight)
-		if weight > eps:
+		# if weight > 0 and weight < eps:
+		# 	print(weight)
+		if types[k] == SOLID:
+			weights[k] = 0.0
+			velocities[k] = ti.Vector([0.0, 0.0])
+
+		if weight > 0:
 			# c += 1
 			tv = velocities[k]
 			velocities[k] = velocities[k] / weight
@@ -214,45 +221,52 @@ def particle_to_grid():
 @ti.kernel
 def solve_divergence():
 
-	for k in ti.grouped(divergences):
+	# for k in ti.grouped(divergences):
 		# if types[k] != FLUID:
-		divergences[k] = 0.0
+		# divergences[k] = 0.0
 		# pressures[k] = 0.0
 
 
 
 	for i, j in velocities:
 		if types[i, j] != SOLID:
-			c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
-			l = c - ti.Vector([0.5, 0]) * dx
-			r = c + ti.Vector([0.5, 0]) * dx
-			d = c - ti.Vector([0, 0.5]) * dx
-			u = c + ti.Vector([0, 0.5]) * dx
-			v_c = sample_bilinear(velocities, c)
-			v_l = sample_bilinear(velocities, l).x
-			v_r = sample_bilinear(velocities, r).x
-			v_d = sample_bilinear(velocities, d).y
-			v_u = sample_bilinear(velocities, u).y
+			# c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
+			# l = c - ti.Vector([0.5, 0]) * dx
+			# r = c + ti.Vector([0.5, 0]) * dx
+			# d = c - ti.Vector([0, 0.5]) * dx
+			# u = c + ti.Vector([0, 0.5]) * dx
+			# v_c = sample_bilinear(velocities, c)
+			# v_l = sample_bilinear(velocities, l).x
+			# v_r = sample_bilinear(velocities, r).x
+			# v_d = sample_bilinear(velocities, d).y
+			# v_u = sample_bilinear(velocities, u).y
+
+
+			v_c = velocities[i, j]
+			v_l = velocities[i-1, j].x
+			v_r = velocities[i+1, j].x
+			v_d = velocities[i, j-1].y
+			v_u = velocities[i, j+1].y
 
 
 			div = v_r - v_l + v_u - v_d
 
 			if types[i-1, j] == SOLID: 
-				v_l = -v_c.x
-				# div += v_l
+				# v_l = -v_c.x
+				div += v_l
 			if types[i+1, j] == SOLID: 
-				v_r = -v_c.x
-				# div -= v_r
+				# v_r = -v_c.x
+				div -= v_r
 			if types[i, j-1] == SOLID: 
-				v_d = -v_c.y
-				# div += v_d
+				# v_d = -v_c.y
+				div += v_d
 			if types[i, j+1] == SOLID: 
-				v_u = -v_c.y
-				# div -= v_u
+				# v_u = -v_c.y
+				div -= v_u
 
-			div = v_r - v_l + v_u - v_d
+			# div = v_r - v_l + v_u - v_d
 
-			divergences[i, j] = div / (dx)
+			divergences[i, j] = div / (2*dx)
 
 
 @ti.kernel
@@ -260,16 +274,21 @@ def pressure_jacobi(pressures:ti.template(), new_pressures:ti.template()):
 
 	for i, j in velocities:
 		if types[i, j] != SOLID:
-			c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
-			l = c - ti.Vector([0.5, 0]) * dx
-			r = c + ti.Vector([0.5, 0]) * dx
-			d = c - ti.Vector([0, 0.5]) * dx
-			u = c + ti.Vector([0, 0.5]) * dx
+			# c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
+			# l = c - ti.Vector([0.5, 0]) * dx
+			# r = c + ti.Vector([0.5, 0]) * dx
+			# d = c - ti.Vector([0, 0.5]) * dx
+			# u = c + ti.Vector([0, 0.5]) * dx
 
-			p_l = sample_bilinear(pressures, l)
-			p_r = sample_bilinear(pressures, r)
-			p_d = sample_bilinear(pressures, d)
-			p_u = sample_bilinear(pressures, u)
+			# p_l = sample_bilinear(pressures, l)
+			# p_r = sample_bilinear(pressures, r)
+			# p_d = sample_bilinear(pressures, d)
+			# p_u = sample_bilinear(pressures, u)
+
+			p_l = pressures[i-1, j]
+			p_r = pressures[i+1, j]
+			p_d = pressures[i, j-1]
+			p_u = pressures[i, j+1]
 
 			k = 4
 			if types[i-1, j] == SOLID:
@@ -295,7 +314,7 @@ def pressure_jacobi(pressures:ti.template(), new_pressures:ti.template()):
 				p_u = 0.0
 
 			# new_pressures[i, j] = 1/3 * pressures[i, j] + 2/3 *  ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx/4) ) / k
-			new_pressures[i, j] =  ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx/4) ) / k
+			new_pressures[i, j] =  ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx) ) / k
 
 
 
@@ -303,16 +322,22 @@ def pressure_jacobi(pressures:ti.template(), new_pressures:ti.template()):
 def projection():
 	for i, j in velocities:
 		if types[i, j] != SOLID:
-			c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
-			l = c - ti.Vector([0.5, 0]) * dx
-			r = c + ti.Vector([0.5, 0]) * dx
-			d = c - ti.Vector([0, 0.5]) * dx
-			u = c + ti.Vector([0, 0.5]) * dx
-			p_c = sample_bilinear(pressures, c)
-			p_l = sample_bilinear(pressures, l)
-			p_r = sample_bilinear(pressures, r)
-			p_d = sample_bilinear(pressures, d)
-			p_u = sample_bilinear(pressures, u)
+			# c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
+			# l = c - ti.Vector([0.5, 0]) * dx
+			# r = c + ti.Vector([0.5, 0]) * dx
+			# d = c - ti.Vector([0, 0.5]) * dx
+			# u = c + ti.Vector([0, 0.5]) * dx
+			# p_c = sample_bilinear(pressures, c)
+			# p_l = sample_bilinear(pressures, l)
+			# p_r = sample_bilinear(pressures, r)
+			# p_d = sample_bilinear(pressures, d)
+			# p_u = sample_bilinear(pressures, u)
+
+
+			p_l = pressures[i-1, j]
+			p_r = pressures[i, j]
+			p_d = pressures[i, j-1]
+			p_u = pressures[i, j]
 
 			grad_p = ti.Vector([p_r - p_l, p_u - p_d]) / (dx)
 
@@ -354,14 +379,14 @@ def grid_to_particle():
 		fx = p_g - base.cast(float)
 		# quadratic B-spline
 		# w = [0.5 * (1.5-fx)**2, 0.75 - (fx-1)**2, 0.5 * (fx-0.5)**2]
-		w = [0.5 * (1.5-(fx-0.5))**2, 0.75 - (abs(fx-1.5))**2, 0.5 * (1.5-(2.5-fx))**2]
+		w = [0.5 * (1.5-(fx-0.5))**2, 0.75 - (ti.abs(fx-1.5))**2, 0.5 * (1.5-(2.5-fx))**2]
 
 		new_v = ti.Vector.zero(ti.f32, 2)
 
-		for i in ti.static(range(-1, 2)):
-			for j in ti.static(range(-1, 2)):
+		for i in ti.static(range(3)):
+			for j in ti.static(range(3)):
 				offset = ti.Vector([i, j])
-				weight = w[i+1][0] * w[j+1][1]
+				weight = w[i][0] * w[j][1]
 				new_v += weight * velocities[base + offset]
 
 
@@ -423,10 +448,8 @@ def step():
 	solve_divergence()
 	
 	for i in range(jacobi_iters):
-		global pressures
-		global new_pressures
+		global pressures, new_pressures
 		pressure_jacobi(pressures, new_pressures)
-		# global new_pressures
 		pressures, new_pressures = new_pressures, pressures
 
 
