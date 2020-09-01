@@ -166,17 +166,19 @@ def particle_to_grid():
 
 
 		# find left bottom corner
-		base = (p_g - stagger).cast(int)
+		# base = (p_g - stagger).cast(int)
+		base = (p_g - 1).cast(int)
 		fx = p_g - base.cast(float)
 		# quadratic B-spline
-		w = [0.5 * (1.5-fx)**2, 0.75 - (fx-1)**2, 0.5 * (fx-0.5)**2]
+		# w = [0.5 * (1.5-fx)**2, 0.75 - (fx-1)**2, 0.5 * (fx-0.5)**2]
+		w = [0.5 * (1.5-(fx-0.5))**2, 0.75 - (abs(fx-1.5))**2, 0.5 * (1.5-(2.5-fx))**2]
 
 		# print(w)
 
-		for i in ti.static(range(3)):
-			for j in ti.static(range(3)):
+		for i in ti.static(range(-1, 2)):
+			for j in ti.static(range(-1, 2)):
 				offset = ti.Vector([i, j])
-				weight = w[i][0] * w[j][1]
+				weight = w[i+1][0] * w[j+1][1]
 				# print(weight)
 				grid_idx = base + offset
 				velocities[grid_idx] += weight * particle_velocity[k]
@@ -347,17 +349,19 @@ def grid_to_particle():
 		p_g = p * m_g
 
 		# find left bottom corner
-		base = (p_g - stagger).cast(int)
+		# base = (p_g - stagger).cast(int)
+		base = (p_g - 1).cast(int)
 		fx = p_g - base.cast(float)
 		# quadratic B-spline
-		w = [0.5 * (1.5-fx)**2, 0.75 - (fx-1)**2, 0.5 * (fx-0.5)**2]
+		# w = [0.5 * (1.5-fx)**2, 0.75 - (fx-1)**2, 0.5 * (fx-0.5)**2]
+		w = [0.5 * (1.5-(fx-0.5))**2, 0.75 - (abs(fx-1.5))**2, 0.5 * (1.5-(2.5-fx))**2]
 
 		new_v = ti.Vector.zero(ti.f32, 2)
 
-		for i in ti.static(range(3)):
-			for j in ti.static(range(3)):
+		for i in ti.static(range(-1, 2)):
+			for j in ti.static(range(-1, 2)):
 				offset = ti.Vector([i, j])
-				weight = w[i][0] * w[j][1]
+				weight = w[i+1][0] * w[j+1][1]
 				new_v += weight * velocities[base + offset]
 
 
@@ -468,7 +472,7 @@ for frame in range(450000):
 	# if frame <= 42:
 		# test()
 
-	time.sleep(0.2)
+	# time.sleep(0.2)
 
 	# break
 	if debug:
