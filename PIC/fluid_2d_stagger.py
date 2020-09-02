@@ -8,28 +8,31 @@ ti.init(arch=ti.gpu)
 
 
 res = 512
-dt = 2.0e-2
+dt = 0.01
 
 # 1, 2, 3
-RK = 3
+# RK = 3
 
 #
-enable_BFECC = True
+# enable_BFECC = True
 
 #
-enable_clipping = True
+# enable_clipping = True
 
 
 rho = 1000
-jacobi_iters = 50
+jacobi_iters = 300
 
+
+length = 6.0
 
 m_g = 32
-m_p = 100
+m_p = m_g
 n_grid = m_g*m_g
 n_particle = m_p*m_p
 
-dx = 1/m_g
+dx = length/m_g
+inv_dx = 1/dx
 
 
 eps = 1e-5
@@ -89,8 +92,9 @@ def init_grid():
 @ti.kernel
 def init_particle():
 	for i in particle_position:
-		# particle_position[i] = ti.Vector([i%m_p / m_p / 2, i//m_p / m_p / 2]) + ti.Vector([0.1, 0.25])
-		particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 0.5 + ti.Vector([0.1, 0.25])
+		# particle_position[i] = ti.Vector([i%m_p / m_p / 1.5, i//m_p / m_p / 1.5]) + ti.Vector([0.1, 0.25])
+		particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 0.6 * 5  + ti.Vector([0.55, 0.65])
+		particle_velocity[i] = ti.Vector([0.0, 0.0])
 
 
 # @ti.kernel
@@ -133,8 +137,8 @@ def handle_boundary():
 
 @ti.func
 def scatter(grid_v, grid_m, xp, vp, stagger):
-    base = (xp * m_g - (stagger + 0.5)).cast(ti.i32)
-    fx = xp * m_g - (base.cast(ti.f32) + stagger)
+    base = (xp * inv_dx - (stagger + 0.5)).cast(ti.i32)
+    fx = xp * inv_dx - (base.cast(ti.f32) + stagger)
 
     w = [0.5*(1.5-fx)**2, 0.75-(fx-1)**2, 0.5*(fx-0.5)**2] # Bspline
 
@@ -149,27 +153,35 @@ def scatter(grid_v, grid_m, xp, vp, stagger):
 @ti.kernel
 def particle_to_grid():
 
-	for i, j in velocities_u:
-		velocities_u[i, j] = 0.0
-		weights_u[i, j] = 0.0
+	
 
-	for i, j in velocities_v:
-		velocities_v[i, j] = 0.0
-		weights_v[i, j] = 0.0
-		if not is_solid(i, j-1) and not is_solid(i, j):
-			velocities_v[i, j] += -9.8 * dt
+
+	# for i, j in velocities_u:
+	# 	velocities_u[i, j] = 0.0
+	# 	weights_u[i, j] = 0.0
+
+	# for i, j in velocities_v:
+	# 	velocities_v[i, j] = 0.0
+	# 	weights_v[i, j] = 0.0
+		# if not is_solid(i, j-1) and not is_solid(i, j):
+		# 	velocities_v[i, j] += -9.8 * dt
 
 	for i, j in types:
-		if types[i, j] != SOLID:
+		if not is_solid(i, j):
 			types[i, j] = AIR
-			divergences[i, j] = 0.0
+			# divergences[i, j] = 0.0
 			pressures[i, j] = 0.0
 			new_pressures[i, j] = 0.0
 
 	for k in particle_velocity:
 
-		scatter(velocities_u, weights_u, particle_position[k], particle_velocity[k].x, ti.Vector([0.0, 0.5]))
-		scatter(velocities_v, weights_v, particle_position[k], particle_velocity[k].y, ti.Vector([0.5, 0.0]))
+		grid = (particle_position[k] * inv_dx).cast(int)
+		types[grid] = FLUID
+
+		stagger_u = ti.Vector([0.0, 0.5])
+		stagger_v = ti.Vector([0.5, 0.0])
+		scatter(velocities_u, weights_u, particle_position[k], particle_velocity[k].x, stagger_u)
+		scatter(velocities_v, weights_v, particle_position[k], particle_velocity[k].y, stagger_v)
 
 	for k in ti.grouped(weights_u):
 		weight = weights_u[k]
@@ -181,6 +193,10 @@ def particle_to_grid():
 		if weight > 0:
 			velocities_v[k] = velocities_v[k] / weight
 
+	for i, j in velocities_v:
+		# if not is_solid(i, j-1) and not is_solid(i, j):
+			velocities_v[i, j] += -9.8 * dt
+
 	handle_boundary()
 
 
@@ -189,7 +205,7 @@ def particle_to_grid():
 def solve_divergence():
 
 	for i, j in divergences:
-		if types[i, j] != SOLID:
+		if not is_solid(i, j):
 
 			# v_c = velocities[i, j]
 			v_l = velocities_u[i, j]
@@ -200,14 +216,17 @@ def solve_divergence():
 
 			div = v_r - v_l + v_u - v_d
 
-			if types[i-1, j] == SOLID: 
+			if is_solid(i-1, j): 
 				div += v_l
-			if types[i+1, j] == SOLID: 
+			if is_solid(i+1, j): 
 				div -= v_r
-			if types[i, j-1] == SOLID: 
+			if is_solid(i, j-1): 
 				div += v_d
-			if types[i, j+1] == SOLID: 
+			if is_solid(i, j+1): 
 				div -= v_u
+
+			# if types[i, j] == AIR:
+			# 	div = 0.0
 
 			divergences[i, j] = div / (dx)
 
@@ -216,7 +235,26 @@ def solve_divergence():
 def pressure_jacobi(pressures:ti.template(), new_pressures:ti.template()):
 
 	for i, j in pressures:
-		if types[i, j] != SOLID:
+		if not is_solid(i, j):
+
+
+			v_l = velocities_u[i, j]
+			v_r = velocities_u[i+1, j]
+			v_d = velocities_v[i, j]
+			v_u = velocities_v[i, j+1]
+
+			div = v_r - v_l + v_u - v_d
+
+
+			if is_solid(i-1, j): 
+				div += v_l
+			if is_solid(i+1, j): 
+				div -= v_r
+			if is_solid(i, j-1): 
+				div += v_d
+			if is_solid(i, j+1): 
+				div -= v_u
+			div /= dx
 
 			p_l = pressures[i-1, j]
 			p_r = pressures[i+1, j]
@@ -224,30 +262,31 @@ def pressure_jacobi(pressures:ti.template(), new_pressures:ti.template()):
 			p_u = pressures[i, j+1]
 
 			k = 4
-			if types[i-1, j] == SOLID:
+			if is_solid(i-1, j):
 				p_l = 0.0
 				k -= 1
-			if types[i+1, j] == SOLID:
+			if is_solid(i+1, j):
 				p_r = 0.0
 				k -= 1
-			if types[i, j-1] == SOLID:
+			if is_solid(i+1, j):
 				p_d = 0.0
 				k -= 1
-			if types[i, j+1] == SOLID:
+			if is_solid(i, j+1):
 				p_u = 0.0
 				k -= 1
 
-			if types[i-1, j] == AIR:
+			if is_air(i-1, j):
 				p_l = 0.0
-			if types[i+1, j] == AIR:
+			if is_air(i+1, j):
 				p_r = 0.0
-			if types[i, j-1] == AIR:
+			if is_air(i, j-1):
 				p_d = 0.0
-			if types[i, j+1] == AIR:
+			if is_air(i, j+1):
 				p_u = 0.0
 
 			# new_pressures[i, j] = 1/3 * pressures[i, j] + 2/3 *  ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx/4) ) / k
-			new_pressures[i, j] =  ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx) ) / k
+			# new_pressures[i, j] =  ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx) ) / k
+			new_pressures[i, j] =  ( p_l + p_r + p_d + p_u - div * rho / dt * (dx*dx) ) / k
 
 
 
@@ -259,6 +298,10 @@ def projection():
 				velocities_u[i, j] = 0.0
 			else:
 				velocities_u[i, j] -= (pressures[i, j] - pressures[i-1, j]) / dx / rho * dt
+				# t = pressures[i, j] - pressures[i-1, j]
+				# if t > eps:
+				# 	print(t)
+				# print(pressures[i]-pre)
 
 		if is_fluid(i, j-1) or is_fluid(i, j):
 			if is_solid(i, j-1) or is_solid(i, j):
@@ -266,6 +309,20 @@ def projection():
 			else:
 				velocities_v[i, j] -= (pressures[i, j] - pressures[i, j-1]) / dx / rho * dt
 
+
+	# for k in ti.grouped(velocities_u):
+	# 	if velocities_u[k] > eps:
+	# 		print(velocities_u[k])
+
+	# for k in ti.grouped(divergences):
+	# 	if is_air(k.x, k.y) and divergences[k] > eps and divergences[k] > 200:
+	# 		print("div ", k, divergences[k])
+	# 		types[k] = SOLID
+	# print("----")
+
+	# for k in ti.grouped(pressures):
+	# 	if is_air(k.x, k.y) and pressures[k] > eps:
+	# 		print(pressures[k])
 	# for i, j in velocities_v:
 	# 	if is_solid(i, j-1) or is_solid(i, j):
 	# 		velocities_v[i, j] = 0.0
@@ -296,8 +353,8 @@ def projection():
 
 @ti.func
 def gather(grid_v, xp, stagger):
-    base = (xp * m_g - (stagger + 0.5)).cast(ti.i32)
-    fx = xp * m_g - (base.cast(ti.f32) + stagger)
+    base = (xp * inv_dx - (stagger + 0.5)).cast(ti.i32)
+    fx = xp * inv_dx - (base.cast(ti.f32) + stagger)
 
     w = [0.5*(1.5-fx)**2, 0.75-(fx-1)**2, 0.5*(fx-0.5)**2] # Bspline
 
@@ -309,6 +366,8 @@ def gather(grid_v, xp, stagger):
             weight = w[i][0] * w[j][1]
             v_pic += weight * grid_v[base + offset]
 
+    # if v_pic > 1e5:
+    # 	print(v_pic)
     return v_pic
 
 
@@ -319,27 +378,33 @@ def grid_to_particle():
 
 
 	for k in particle_velocity:
-		new_u = gather(velocities_u, particle_position[k], ti.Vector([0.0, 0.5]))
-		new_v = gather(velocities_v, particle_position[k], ti.Vector([0.5, 0.0]))
+		stagger_u = ti.Vector([0.0, 0.5])
+		stagger_v = ti.Vector([0.5, 0.0])
+		new_u = gather(velocities_u, particle_position[k], stagger_u)
+		new_v = gather(velocities_v, particle_position[k], stagger_v)
 
 
 		vel = ti.Vector([new_u, new_v])
 
 		new_p = particle_position[k] + vel * dt
 
+		# if new_u > eps:
+			# print(new_u)
+
 
 
 		if new_p.x < dx*2:
 			new_p.x = dx*2
 			new_u = 0
-		if new_p.x >= 1 - dx*2:
-			new_p.x = 1 - dx*2 - eps
+		if new_p.x >= length - dx*2:
+			new_p.x = length - dx*2 - eps
 			new_u = 0
+			
 		if new_p.y < dx*2:
 			new_p.y = dx*2
 			new_v = 0
-		if new_p.y >= 1 - dx*2:
-			new_p.y = 1 - dx*2 - eps
+		if new_p.y >= length - dx*2:
+			new_p.y = length - dx*2 - eps
 			new_v = 0
 
 
@@ -352,6 +417,13 @@ def grid_to_particle():
 
 def step():
 	# advect_particle()
+
+
+	velocities_u.fill(0.0)
+	velocities_v.fill(0.0)
+	weights_u.fill(0.0)
+	weights_v.fill(0.0)
+	divergences.fill(0.0)
 
 	particle_to_grid()
 
@@ -393,14 +465,15 @@ gui = ti.GUI("Fluid 2D", (res, res))
 
 # pre_mouse_pos = None
 # cur_mouse_pos = None
-
+first = True
 
 for frame in range(450000):
 
-	# for i in range(10):
-	# if frame <= 42: 
-	# 	step()
-	step()
+	if first:
+		# first = False
+		for i in range(4):
+			step()
+	# break
 
 	# if frame <= 42:
 		# test()
@@ -418,17 +491,18 @@ for frame in range(450000):
 					color = 0x0000FF
 				elif types[i, j] == SOLID:
 					color = 0xFF0000
-				gui.circle([(i+0.5)*dx, (j+0.5)*dx], radius = 3, color = color)
+				gui.circle([(i+0.5)/m_g, (j+0.5)/m_g], radius = 2, color = color)
 				# gui.line([i*dx, j*dx], [i*dx, (j+1)*dx], color = 0xFF0000)
 				# gui.line([i*dx, (j+1)*dx], [(i+1)*dx, (j+1)*dx], color = 0xFF0000)
 				# gui.line([(i+1)*dx, j*dx], [(i+1)*dx, (j+1)*dx], color = 0xFF0000)
 				# gui.line([(i+1)*dx, j*dx], [i*dx, j*dx], color = 0xFF0000)
 
-	gui.circles(particle_position.to_numpy(), radius=1, color=0xFFFFFF)
+	gui.circles(particle_position.to_numpy() / length, radius=1, color=0xFFFFFF)
 
 
 	
 	gui.show()
+	# break
 
 	# video_manager.write_frame(colors.to_numpy())
 

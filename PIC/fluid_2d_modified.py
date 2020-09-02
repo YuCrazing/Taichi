@@ -34,7 +34,7 @@ dx = 1/m_g
 
 eps = 1e-5
 
-debug = True
+debug = False
 
 
 
@@ -151,7 +151,7 @@ def particle_to_grid():
 		velocities[k] = ti.Vector([0.0, 0.0])
 		weights[k] = 0.0
 		divergences[k] = 0.0
-		pressures[k] = 0.0
+		# pressures[k] = 0.0
 		new_pressures[k] = 0.0
 
 		# pressures[k] = 0.0
