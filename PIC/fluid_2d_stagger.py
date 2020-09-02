@@ -192,8 +192,8 @@ def solve_divergence():
 		if types[i, j] != SOLID:
 
 			# v_c = velocities[i, j]
-			v_l = velocities_u[i-1, j]
-			v_r = velocities_u[i, j]
+			v_l = velocities_u[i, j]
+			v_r = velocities_u[i+1, j]
 			v_d = velocities_v[i, j]
 			v_u = velocities_v[i, j+1]
 
