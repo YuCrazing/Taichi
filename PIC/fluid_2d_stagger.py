@@ -4,7 +4,7 @@ import time
 
 
 
-ti.init(arch=ti.gpu)
+ti.init(arch=ti.cpu, default_fp=ti.f32)
 
 
 res = 512
@@ -20,16 +20,16 @@ dt = 0.01
 # enable_clipping = True
 
 
-rho = 1000
+rho = 10000
 jacobi_iters = 300
 
 
-length = 6.0
+length = 8.0
 
-m_g = 32
+m_g = 64
 m_p = m_g
 n_grid = m_g*m_g
-n_particle = m_p*m_p
+n_particle = m_p*m_p*4
 
 dx = length/m_g
 inv_dx = 1/dx
@@ -76,10 +76,10 @@ particle_position = ti.Vector(2, dt=ti.f32, shape=n_particle)
 
 
 # screen center. The simualation area is (0, 0) to (1, 1)
-center = ti.Vector([0.5, 0.5])
+# center = ti.Vector([0.5, 0.5])
 
 # cell center
-stagger = ti.Vector([0.5, 0.5])
+# stagger = ti.Vector([0.5, 0.5])
 
 
 @ti.kernel
@@ -93,7 +93,8 @@ def init_grid():
 def init_particle():
 	for i in particle_position:
 		# particle_position[i] = ti.Vector([i%m_p / m_p / 1.5, i//m_p / m_p / 1.5]) + ti.Vector([0.1, 0.25])
-		particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 0.6 * 5  + ti.Vector([0.55, 0.65])
+		# particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 0.6 * 5  + ti.Vector([0.55, 0.65])
+		particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 3.5  + ti.Vector([0.5, 0.5])
 		particle_velocity[i] = ti.Vector([0.0, 0.0])
 
 
@@ -122,7 +123,7 @@ def is_fluid(i, j):
 	return is_valid(i, j) and types[i, j] == FLUID
 
 
-@ti.func
+@ti.kernel
 def handle_boundary():
 
 	for i, j in velocities_u:
@@ -151,11 +152,21 @@ def scatter(grid_v, grid_m, xp, vp, stagger):
 
 
 @ti.kernel
+def mark_cell():
+	for i, j in types:
+		if not is_solid(i, j):
+			types[i, j] = AIR
+
+
+	for k in particle_velocity:
+		grid = (particle_position[k] * inv_dx).cast(int)
+		if not is_solid(grid.x, grid.y):
+			types[grid] = FLUID
+
+@ti.kernel
 def particle_to_grid():
 
 	
-
-
 	# for i, j in velocities_u:
 	# 	velocities_u[i, j] = 0.0
 	# 	weights_u[i, j] = 0.0
@@ -163,41 +174,51 @@ def particle_to_grid():
 	# for i, j in velocities_v:
 	# 	velocities_v[i, j] = 0.0
 	# 	weights_v[i, j] = 0.0
-		# if not is_solid(i, j-1) and not is_solid(i, j):
-		# 	velocities_v[i, j] += -9.8 * dt
 
-	for i, j in types:
-		if not is_solid(i, j):
-			types[i, j] = AIR
-			# divergences[i, j] = 0.0
-			pressures[i, j] = 0.0
-			new_pressures[i, j] = 0.0
 
-	for k in particle_velocity:
+	# for i, j in types:
+	# 	if not is_solid(i, j):
+	# 		types[i, j] = AIR
+	# 		# divergences[i, j] = 0.0
+	# 		pressures[i, j] = 0.0
+	# 		new_pressures[i, j] = 0.0
 
-		grid = (particle_position[k] * inv_dx).cast(int)
-		types[grid] = FLUID
+	for k in particle_position:
+
+		p = particle_position[k]
+
+		# grid = (p * inv_dx).cast(int)
+		# types[grid] = FLUID
 
 		stagger_u = ti.Vector([0.0, 0.5])
 		stagger_v = ti.Vector([0.5, 0.0])
-		scatter(velocities_u, weights_u, particle_position[k], particle_velocity[k].x, stagger_u)
-		scatter(velocities_v, weights_v, particle_position[k], particle_velocity[k].y, stagger_v)
+		scatter(velocities_u, weights_u, p, particle_velocity[k].x, stagger_u)
+		scatter(velocities_v, weights_v, p, particle_velocity[k].y, stagger_v)
 
-	for k in ti.grouped(weights_u):
-		weight = weights_u[k]
-		if weight > 0:
-			velocities_u[k] = velocities_u[k] / weight
 
-	for k in ti.grouped(weights_v):
-		weight = weights_v[k]
-		if weight > 0:
-			velocities_v[k] = velocities_v[k] / weight
 
+
+
+@ti.kernel
+def grid_norm():
+
+	for k in ti.grouped(velocities_u):
+		# weight = weights_u[k]
+		if weights_u[k] > 0:
+			velocities_u[k] = velocities_u[k] / weights_u[k]
+
+	for k in ti.grouped(velocities_v):
+		# weight = weights_v[k]
+		if weights_v[k] > 0:
+			velocities_v[k] = velocities_v[k] / weights_v[k]
+
+@ti.kernel
+def apply_gravity():
 	for i, j in velocities_v:
 		# if not is_solid(i, j-1) and not is_solid(i, j):
 			velocities_v[i, j] += -9.8 * dt
 
-	handle_boundary()
+	# handle_boundary()
 
 
 
@@ -232,9 +253,9 @@ def solve_divergence():
 
 
 @ti.kernel
-def pressure_jacobi(pressures:ti.template(), new_pressures:ti.template()):
+def pressure_jacobi(p:ti.template(), new_p:ti.template()):
 
-	for i, j in pressures:
+	for i, j in p:
 		if not is_solid(i, j):
 
 
@@ -246,34 +267,57 @@ def pressure_jacobi(pressures:ti.template(), new_pressures:ti.template()):
 			div = v_r - v_l + v_u - v_d
 
 
-			if is_solid(i-1, j): 
-				div += v_l
-			if is_solid(i+1, j): 
-				div -= v_r
-			if is_solid(i, j-1): 
-				div += v_d
-			if is_solid(i, j+1): 
-				div -= v_u
-			div /= dx
+			p_l = p[i-1, j]
+			p_r = p[i+1, j]
+			p_d = p[i, j-1]
+			p_u = p[i, j+1]
 
-			p_l = pressures[i-1, j]
-			p_r = pressures[i+1, j]
-			p_d = pressures[i, j-1]
-			p_u = pressures[i, j+1]
+
+
+			# if is_solid(i-1, j): 
+			# 	div += v_l
+			# if is_solid(i+1, j): 
+			# 	div -= v_r
+			# if is_solid(i, j-1): 
+			# 	div += v_d
+			# if is_solid(i, j+1): 
+			# 	div -= v_u
+			# div /= dx
+
+
+			# k = 4
+			# if is_solid(i-1, j):
+			# 	p_l = 0.0
+			# 	k -= 1
+			# if is_solid(i+1, j):
+			# 	p_r = 0.0
+			# 	k -= 1
+			# if is_solid(i+1, j):
+			# 	p_d = 0.0
+			# 	k -= 1
+			# if is_solid(i, j+1):
+			# 	p_u = 0.0
+			# 	k -= 1
 
 			k = 4
 			if is_solid(i-1, j):
 				p_l = 0.0
 				k -= 1
+				div += v_l
 			if is_solid(i+1, j):
 				p_r = 0.0
 				k -= 1
-			if is_solid(i+1, j):
+				div -= v_r
+			if is_solid(i, j-1):
 				p_d = 0.0
 				k -= 1
+				div += v_d
 			if is_solid(i, j+1):
 				p_u = 0.0
 				k -= 1
+				div -= v_u
+			div /= dx
+
 
 			if is_air(i-1, j):
 				p_l = 0.0
@@ -286,7 +330,7 @@ def pressure_jacobi(pressures:ti.template(), new_pressures:ti.template()):
 
 			# new_pressures[i, j] = 1/3 * pressures[i, j] + 2/3 *  ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx/4) ) / k
 			# new_pressures[i, j] =  ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx) ) / k
-			new_pressures[i, j] =  ( p_l + p_r + p_d + p_u - div * rho / dt * (dx*dx) ) / k
+			new_p[i, j] =  ( p_l + p_r + p_d + p_u - div * rho / dt * (dx*dx) ) / k
 
 
 
@@ -309,46 +353,29 @@ def projection():
 			else:
 				velocities_v[i, j] -= (pressures[i, j] - pressures[i, j-1]) / dx / rho * dt
 
+	# for k in ti.grouped(pressures):
+	# 	if pressures[k] > eps:
+	# 		print(pressures[k])
 
 	# for k in ti.grouped(velocities_u):
 	# 	if velocities_u[k] > eps:
 	# 		print(velocities_u[k])
 
+	# print("")
 	# for k in ti.grouped(divergences):
-	# 	if is_air(k.x, k.y) and divergences[k] > eps and divergences[k] > 200:
+	# 	if is_air(k.x, k.y) and divergences[k] > eps:
 	# 		print("div ", k, divergences[k])
-	# 		types[k] = SOLID
+	# 		# types[k] = SOLID
 	# print("----")
 
-	# for k in ti.grouped(pressures):
-	# 	if is_air(k.x, k.y) and pressures[k] > eps:
-	# 		print(pressures[k])
-	# for i, j in velocities_v:
-	# 	if is_solid(i, j-1) or is_solid(i, j):
-	# 		velocities_v[i, j] = 0.0
-	# 	else:
-	# 		p_l = pressures[i-1, j]
-	# 		p_r = pressures[i, j]
-	# 		p_d = pressures[i, j-1]
-	# 		p_u = pressures[i, j]
-	# 		grad_p = ti.Vector([p_r - p_l, p_u - p_d]) / (dx)
-	# 		velocities_v[i, j] -= grad_p.y / rho * dt
+# @ti.kernel
+# def test(i:ti.i32):
+# 	# for k in ti.grouped(divergences):
+# 	# 	if is_air(k.x, k.y) and divergences[k] > eps:
+# 	# 		print("div ", k, divergences[k])
+# 	# 		# types[k] = SOLID
+# 	print(i)
 
-
-
-    # scale = dt / (rho * dx)
-    # for i, j in ti.ndrange(m, n):
-    #     if is_fluid(i - 1, j) or is_fluid(i, j):
-    #         if is_solid(i - 1, j) or is_solid(i, j):
-    #             u[i, j] = 0
-    #         else:
-    #             u[i, j] -= scale * (p[i, j] - p[i - 1, j])
-
-    #     if is_fluid(i, j - 1) or is_fluid(i, j):
-    #         if is_solid(i, j - 1) or is_solid(i, j):
-    #             v[i, j] = 0
-    #         else:
-    #             v[i, j] -= scale * (p[i, j] - p[i, j - 1])
 
 
 @ti.func
@@ -376,41 +403,55 @@ def gather(grid_v, xp, stagger):
 @ti.kernel
 def grid_to_particle():
 
+	stagger_u = ti.Vector([0.0, 0.5])
+	stagger_v = ti.Vector([0.5, 0.0])
+	
+	for k in ti.grouped(particle_position):
+	
+		p = particle_position[k]
 
-	for k in particle_velocity:
-		stagger_u = ti.Vector([0.0, 0.5])
-		stagger_v = ti.Vector([0.5, 0.0])
-		new_u = gather(velocities_u, particle_position[k], stagger_u)
-		new_v = gather(velocities_v, particle_position[k], stagger_v)
+		new_u = gather(velocities_u, p, stagger_u)
+		new_v = gather(velocities_v, p, stagger_v)
 
 
 		vel = ti.Vector([new_u, new_v])
 
-		new_p = particle_position[k] + vel * dt
+		# new_p = particle_position[k] + vel * dt
+
+		particle_velocity[k] = vel
 
 		# if new_u > eps:
 			# print(new_u)
 
 
+@ti.kernel
+def advect_particles():
 
-		if new_p.x < dx*2:
-			new_p.x = dx*2
-			new_u = 0
-		if new_p.x >= length - dx*2:
-			new_p.x = length - dx*2 - eps
-			new_u = 0
-			
-		if new_p.y < dx*2:
-			new_p.y = dx*2
-			new_v = 0
-		if new_p.y >= length - dx*2:
-			new_p.y = length - dx*2 - eps
-			new_v = 0
+	for k in ti.grouped(particle_position):
+
+		pos = particle_position[k]
+		pv = particle_velocity[k]
+		
+		pos += pv * dt
+
+		if pos.x <= dx*2:
+			pos.x = dx*2
+			pv.x = 0
+		if pos.x >= length - dx*2:
+			pos.x = length - dx*2
+			pv.x = 0
+
+		if pos.y <= dx*2:
+			pos.y = dx*2
+			pv.y = 0
+		if pos.y >= length - dx*2:
+			pos.y = length - dx*2
+			pv.y = 0
 
 
-		particle_position[k] = new_p
+		particle_position[k] = pos
 
-		particle_velocity[k] = vel
+		particle_velocity[k] = pv
 
 
 
@@ -418,14 +459,20 @@ def grid_to_particle():
 def step():
 	# advect_particle()
 
+	mark_cell()
+
 
 	velocities_u.fill(0.0)
 	velocities_v.fill(0.0)
 	weights_u.fill(0.0)
 	weights_v.fill(0.0)
-	divergences.fill(0.0)
+	# divergences.fill(0.0)
 
 	particle_to_grid()
+	grid_norm()
+
+	apply_gravity()
+	handle_boundary()
 
 	solve_divergence()
 	
@@ -439,13 +486,15 @@ def step():
 
 	grid_to_particle()
 
+	advect_particles()
 
 
 
 
-@ti.kernel
-def test():
-	print(particle_velocity[0])
+
+# @ti.kernel
+# def test():
+# 	print(particle_velocity[0])
 
 
 # init_velocity_field()
@@ -465,14 +514,14 @@ gui = ti.GUI("Fluid 2D", (res, res))
 
 # pre_mouse_pos = None
 # cur_mouse_pos = None
-first = True
+# first = True
 
 for frame in range(450000):
 
-	if first:
-		# first = False
-		for i in range(4):
-			step()
+	for i in range(4):
+		step()
+		# test(i)
+		# print("i", i )
 	# break
 
 	# if frame <= 42:
@@ -502,6 +551,7 @@ for frame in range(450000):
 
 	
 	gui.show()
+	# time.sleep(5)
 	# break
 
 	# video_manager.write_frame(colors.to_numpy())
