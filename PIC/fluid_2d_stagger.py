@@ -4,11 +4,12 @@ import time
 
 
 
-ti.init(arch=ti.cpu, default_fp=ti.f32)
+ti.init(arch=ti.gpu, default_fp=ti.f32)
 
 
 res = 512
-dt = 0.01
+dt = 2e-2 #2e-3 #2e-2
+substep = 1
 
 # 1, 2, 3
 # RK = 3
@@ -20,16 +21,16 @@ dt = 0.01
 # enable_clipping = True
 
 
-rho = 10000
+rho = 1000
 jacobi_iters = 300
 
 
-length = 8.0
+length = 10.0
 
-m_g = 64
+m_g = 128
 m_p = m_g
 n_grid = m_g*m_g
-n_particle = m_p*m_p*4
+n_particle = m_p*m_p
 
 dx = length/m_g
 inv_dx = 1/dx
@@ -94,7 +95,7 @@ def init_particle():
 	for i in particle_position:
 		# particle_position[i] = ti.Vector([i%m_p / m_p / 1.5, i//m_p / m_p / 1.5]) + ti.Vector([0.1, 0.25])
 		# particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 0.6 * 5  + ti.Vector([0.55, 0.65])
-		particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 3.5  + ti.Vector([0.5, 0.5])
+		particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 4  + ti.Vector([0.1, 0.1])
 		particle_velocity[i] = ti.Vector([0.0, 0.0])
 
 
@@ -328,14 +329,29 @@ def pressure_jacobi(p:ti.template(), new_p:ti.template()):
 			if is_air(i, j+1):
 				p_u = 0.0
 
+			# new_p[i, j] = ( p_l + p_r + p_d + p_u - div * rho / dt * (dx*dx) ) / k
 			# new_pressures[i, j] = 1/3 * pressures[i, j] + 2/3 *  ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx/4) ) / k
 			# new_pressures[i, j] =  ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx) ) / k
-			new_p[i, j] =  ( p_l + p_r + p_d + p_u - div * rho / dt * (dx*dx) ) / k
+			new_p[i, j] = 1/3 * p[i, j] + 2/3 * ( p_l + p_r + p_d + p_u - div * rho / dt * (dx*dx) ) / k
 
 
 
 @ti.kernel
 def projection():
+
+
+	for i, j in pressures:
+		if is_air(i, j):
+			pressures[i, j] = 0.0
+
+	# for i, j in velocities_u:
+	# 	if is_solid(i, j) and is_solid(i-1, j):
+	# 		velocities_u[i, j] = 0.0
+
+	# for i, j in velocities_v:
+	# 	if is_solid(i, j) and is_solid(i, j-1):
+	# 		velocities_v[i, j] = 0.0
+
 	for i, j in ti.ndrange(m_g, m_g):
 		if is_fluid(i-1, j) or is_fluid(i, j):
 			if is_solid(i-1, j) or is_solid(i, j):
@@ -353,9 +369,43 @@ def projection():
 			else:
 				velocities_v[i, j] -= (pressures[i, j] - pressures[i, j-1]) / dx / rho * dt
 
-	# for k in ti.grouped(pressures):
-	# 	if pressures[k] > eps:
-	# 		print(pressures[k])
+	for i, j in velocities_u:
+		if is_valid(i-1, j) and is_solid(i-1, j) and is_solid(i, j):
+			velocities_u[i, j] = velocities_u[i-1, j]
+		if is_valid(i+1, j) and not is_solid(i+1, j) and is_solid(i, j):
+			velocities_u[i, j] =  velocities_u[i+1, j]
+		# if is_valid(i, j) and not is_solid(i, j):
+		# 	velocities_u[i, j] = - velocities_u[i, j]
+
+	for i, j in velocities_v:
+		if is_valid(i, j-1) and not is_solid(i, j-1) and is_solid(i, j):
+			velocities_v[i, j] =  velocities_v[i, j-1]
+		if is_valid(i, j+1) and not is_solid(i+1, j) and is_solid(i, j):
+			velocities_v[i, j] =  velocities_v[i, j+1]
+
+
+
+	# for i, j in divergences:
+	# 	if not is_solid(i, j):
+	# 		v_l = velocities_u[i, j]
+	# 		v_r = velocities_u[i+1, j]
+	# 		v_d = velocities_v[i, j]
+	# 		v_u = velocities_v[i, j+1]
+
+	# 		div = v_r - v_l + v_u - v_d
+
+	# 		# if is_solid(i-1, j):
+	# 		# 	div += v_l
+	# 		# if is_solid(i+1, j):
+	# 		# 	div -= v_r
+	# 		# if is_solid(i, j-1):
+	# 		# 	div += v_d
+	# 		# if is_solid(i, j+1):
+	# 		# 	div -= v_u
+	# 		div /= dx
+	# 		if  abs(div) > eps * 1000000:
+	# 			print(i, j,"[", div,"]", v_l, v_r, v_d, v_u)
+	# print("------")
 
 	# for k in ti.grouped(velocities_u):
 	# 	if velocities_u[k] > eps:
@@ -518,7 +568,9 @@ gui = ti.GUI("Fluid 2D", (res, res))
 
 for frame in range(450000):
 
-	for i in range(4):
+	gui.clear(0xFFFFFF)
+
+	for i in range(substep):
 		step()
 		# test(i)
 		# print("i", i )
@@ -546,7 +598,7 @@ for frame in range(450000):
 				# gui.line([(i+1)*dx, j*dx], [(i+1)*dx, (j+1)*dx], color = 0xFF0000)
 				# gui.line([(i+1)*dx, j*dx], [i*dx, j*dx], color = 0xFF0000)
 
-	gui.circles(particle_position.to_numpy() / length, radius=1, color=0xFFFFFF)
+	gui.circles(particle_position.to_numpy() / length, radius=1, color=0x3399FF)
 
 
 	
