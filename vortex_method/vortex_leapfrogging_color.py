@@ -117,8 +117,8 @@ init()
 
 gui=ti.GUI("Vortex Leapfrogging", (width, height), 0x0)
 
-# result_dir = "./results"
-# video_manager = ti.VideoManager(output_dir=result_dir, framerate=30, automatic_build=False)
+result_dir = "./result"
+video_manager = ti.VideoManager(output_dir=result_dir, framerate=30, automatic_build=False)
 
 
 for frame in range(600):
@@ -127,12 +127,16 @@ for frame in range(600):
     advect_particle()
     integrate_vortex()
 
+  # too slow
+  # for i in range(particle_num):
+  #   gui.circles(np.array([[particles[i].x, particles[i].y]]) * np.array([[0.1*height/width, 0.1]]) + np.array([[0.0, 0.5]]), radius=0.5, color=0x0000FF)
+
   get_image()
   gui.set_image(pixels)
   # gui.circles(particles.to_numpy() * np.array([[0.1*height/width, 0.1]]) + np.array([[0.0, 0.5]]), radius=0.5, color=0x000000)
   gui.show()
 
-  # video_manager.write_frame(pixels.to_numpy())
+  video_manager.write_frame(pixels.to_numpy())
 
 
-# video_manager.make_video(gif=True, mp4=True)
+video_manager.make_video(gif=True, mp4=True)

@@ -177,10 +177,10 @@ init_image()
 gui = ti.GUI("Fluid 2D", (n, n))
 
 
-# result_dir = "./fluid_2d"
-# video_manager = ti.VideoManager(output_dir=result_dir, framerate=30, automatic_build=False)
+result_dir = "./result"
+video_manager = ti.VideoManager(output_dir=result_dir, framerate=30, automatic_build=False)
 
-for frame in range(300000):
+for frame in range(300):
 	
 	advect()
 	# time.sleep(1)
@@ -193,8 +193,8 @@ for frame in range(300000):
 		if enable_clipping: 
 			gui.text(content=f'Clipped', pos=(0, 0.90), color=0x0)
 	
+	# video_manager.write_frame(gui.get_image())
 	gui.show()
 
-	# video_manager.write_frame(pixels.to_numpy())
 
 # video_manager.make_video(gif=True, mp4=True)

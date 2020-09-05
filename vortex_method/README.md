@@ -8,7 +8,7 @@ A program for simulating leapfrogging vortex rings.
 `Taichi 0.6.26`
 
 ## Video
-![](vortex.gif)
+![](./output/vortex_compressed_400.gif)
 
 ## References
 
