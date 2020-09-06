@@ -7,7 +7,11 @@ import time
 # pressure in air cells should be 0 (or volume shrink quickly)
 # velocity in air cells may not be 0
 
+# FIX: adjusted the boundary response in handle_boundary() and advect_particles(), is seems to be more energetic now
+
 # TODO: velocities which are next to solid should be extraploated before and after solving pressure 
+# TODO: solve vorticity enhancement explosion problem
+# TODO: set length = 1 to make fluid more energetic
 
 ti.init(arch=ti.gpu, default_fp=ti.f32)
 
@@ -36,6 +40,14 @@ boundary_width = 2
 
 eps = 1e-5
 
+
+# boundary condition test
+# bounce = 0
+
+# enhance vorticity
+curl_strength = 0.0
+
+
 # show grid types
 debug = False
 
@@ -51,6 +63,8 @@ weights_v = ti.var(dt=ti.f32, shape=(m_g, m_g+1))
 pressures = ti.var(dt=ti.f32, shape=(m_g, m_g))
 new_pressures = ti.var(dt=ti.f32, shape=(m_g, m_g))
 divergences = ti.var(dt=ti.f32, shape=(m_g, m_g))
+vorticities = ti.var(dt=ti.f32, shape=(m_g, m_g))
+
 
 FLUID = 0
 AIR = 1
@@ -61,7 +75,6 @@ types = ti.var(dt=ti.i32, shape=(m_g, m_g))
 particle_velocity = ti.Vector(2, dt=ti.f32, shape=n_particle)
 particle_position = ti.Vector(2, dt=ti.f32, shape=n_particle)
 
-bounce = 0
 
 @ti.kernel
 def init_grid():
@@ -74,8 +87,7 @@ def init_grid():
 @ti.kernel
 def init_particle():
 	for i in particle_position:
-		# particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 0.6 * 5  + ti.Vector([0.5, 0.5])
-		particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 5  + ti.Vector([0.5, 0.5])
+		particle_position[i] = (ti.Vector([ti.random(), ti.random()])*0.5 + 0.05) * length
 		particle_velocity[i] = ti.Vector([0.0, 0.0])
 
 
@@ -100,12 +112,18 @@ def is_fluid(i, j):
 def handle_boundary():
 
 	for i, j in velocities_u:
-		if is_solid(i-1, j) or is_solid(i, j):
-			velocities_u[i, j] = 0.0	
+		if is_solid(i-1, j) and velocities_u[i, j] < 0:
+			velocities_u[i, j] = 0
+		if is_solid(i, j) and velocities_u[i, j] > 0:
+			velocities_u[i, j] = 0	
 	
 	for i, j in velocities_v:
-		if is_solid(i, j-1) or is_solid(i, j):
+		if is_solid(i, j-1) and velocities_v[i, j] < 0:
 			velocities_v[i, j] = 0.0
+		if is_solid(i, j) and velocities_v[i, j] > 0:
+			velocities_v[i, j] = 0.0
+
+
 
 @ti.kernel
 def init_step():
@@ -200,16 +218,51 @@ def solve_divergence():
 
 			div = v_r - v_l + v_u - v_d
 
-			if is_solid(i-1, j): 
-				div += v_l
-			if is_solid(i+1, j): 
-				div -= v_r
-			if is_solid(i, j-1): 
-				div += v_d
-			if is_solid(i, j+1): 
-				div -= v_u
+			# velocities in solid cells are enforced to be 0
+
+			# if is_solid(i-1, j): 
+			# 	div += v_l
+			# if is_solid(i+1, j): 
+			# 	div -= v_r
+			# if is_solid(i, j-1): 
+			# 	div += v_d
+			# if is_solid(i, j+1): 
+			# 	div -= v_u
 
 			divergences[i, j] = div / (dx)
+
+@ti.kernel
+def solve_vorticity():
+
+	for i, j in divergences:
+		if not is_solid(i, j):
+
+			v_l = 0.25 * (velocities_v[i, j] + velocities_v[i, j+1] + velocities_v[i-1, j] + velocities_v[i-1, j+1])
+			v_r = 0.25 * (velocities_v[i, j] + velocities_v[i, j+1] + velocities_v[i+1, j] + velocities_v[i+1, j+1])
+			v_d = 0.25 * (velocities_u[i, j] + velocities_u[i+1, j] + velocities_u[i, j-1] + velocities_u[i+1, j-1])
+			v_u = 0.25 * (velocities_u[i, j] + velocities_u[i+1, j] + velocities_u[i, j+1] + velocities_u[i+1, j+1])
+
+			vorticities[i, j] = ( (v_r - v_l) - (v_u - v_d) ) / dx
+
+@ti.kernel
+def enhance_vorticity():
+
+	for i, j in vorticities:
+		if not is_solid(i, j):
+
+			vor_l = vorticities[i-1, j]
+			vor_r = vorticities[i+1, j]
+			vor_d = vorticities[i, j-1]
+			vor_u = vorticities[i, j+1]
+			vor_c = vorticities[i, j]
+
+			force = ti.Vector([abs(vor_u) - abs(vor_d), abs(vor_l) - abs(vor_r)]).normalized(1e-3)
+			force *= curl_strength * vor_c
+
+			velocities_u[i, j] = min(max(velocities_u[i, j] + force.x * dt, -1e3), 1e3)
+			velocities_u[i+1, j] = min(max(velocities_u[i+1, j] + force.x * dt, -1e3), 1e3)
+			velocities_v[i, j] = min(max(velocities_v[i, j] + force.x * dt, -1e3), 1e3)
+			velocities_v[i, j+1] = min(max(velocities_v[i, j+1] + force.x * dt, -1e3), 1e3)
 
 
 @ti.kernel
@@ -220,28 +273,28 @@ def pressure_jacobi(p:ti.template(), new_p:ti.template()):
 	for i, j in p:
 		if is_fluid(i, j):
 
-			v_l = velocities_u[i, j]
-			v_r = velocities_u[i+1, j]
-			v_d = velocities_v[i, j]
-			v_u = velocities_v[i, j+1]
+			# v_l = velocities_u[i, j]
+			# v_r = velocities_u[i+1, j]
+			# v_d = velocities_v[i, j]
+			# v_u = velocities_v[i, j+1]
 
-			div = v_r - v_l + v_u - v_d
+			# div = v_r - v_l + v_u - v_d
 
-			if is_solid(i-1, j): 
-				div += v_l
-				v_l = -v_r * bounce
-			if is_solid(i+1, j): 
-				div -= v_r
-				v_r = -v_l * bounce
-			if is_solid(i, j-1): 
-				div += v_d
-				v_d = -v_u * bounce
-			if is_solid(i, j+1): 
-				div -= v_u
-				v_u = -v_d * bounce
+			# if is_solid(i-1, j): 
+			# 	div += v_l
+			# 	v_l = -v_r * bounce
+			# if is_solid(i+1, j): 
+			# 	div -= v_r
+			# 	v_r = -v_l * bounce
+			# if is_solid(i, j-1): 
+			# 	div += v_d
+			# 	v_d = -v_u * bounce
+			# if is_solid(i, j+1): 
+			# 	div -= v_u
+			# 	v_u = -v_d * bounce
 
-			div = v_r - v_l + v_u - v_d
-			div /= dx
+			# div = v_r - v_l + v_u - v_d
+			# div /= dx
 
 			p_l = p[i-1, j]
 			p_r = p[i+1, j]
@@ -264,10 +317,10 @@ def pressure_jacobi(p:ti.template(), new_p:ti.template()):
 				k -= 1
 
 
-			# new_p[i, j] = (1 - w) * p[i, j] + w * ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx) ) / k
+			new_p[i, j] = (1 - w) * p[i, j] + w * ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx) ) / k
 			# new_p[i, j] = ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx) ) / k
 			# new_p[i, j] = 1/3 * p[i, j] + 2/3 * ( p_l + p_r + p_d + p_u - div * rho / dt * (dx*dx) ) / k
-			new_p[i, j] = ( p_l + p_r + p_d + p_u - div * rho / dt * (dx*dx) ) / k
+			# new_p[i, j] = ( p_l + p_r + p_d + p_u - div * rho / dt * (dx*dx) ) / k
 			# new_p[i, j] = 1/3 * p[i, j] + 2/3 * ( p_l + p_r + p_d + p_u - div * rho / dt * (dx*dx) ) / k
 
 
@@ -277,28 +330,30 @@ def projection():
 	for i, j in ti.ndrange(m_g, m_g):
 		if is_fluid(i-1, j) or is_fluid(i, j):
 			if is_solid(i-1, j) or is_solid(i, j):
-				velocities_u[i, j] = 0.0
+				# velocities_u[i, j] = 0.0
+				pass
 			else:
 				velocities_u[i, j] -= (pressures[i, j] - pressures[i-1, j]) / dx / rho * dt
 
 		if is_fluid(i, j-1) or is_fluid(i, j):
 			if is_solid(i, j-1) or is_solid(i, j):
-				velocities_v[i, j] = 0.0
+				# velocities_v[i, j] = 0.0
+				pass
 			else:
 				velocities_v[i, j] -= (pressures[i, j] - pressures[i, j-1]) / dx / rho * dt
 
 
-	for i, j in velocities_u:
-		if is_solid(i-1, j):
-			velocities_u[i, j] = -velocities_u[i+1, j] * bounce
-		elif is_solid(i, j):
-			velocities_u[i, j] = -velocities_u[i-1, j] * bounce
+	# for i, j in velocities_u:
+	# 	if is_solid(i-1, j):
+	# 		velocities_u[i, j] = -velocities_u[i+1, j] * bounce
+	# 	elif is_solid(i, j):
+	# 		velocities_u[i, j] = -velocities_u[i-1, j] * bounce
 
-	for i, j in velocities_v:
-		if is_solid(i, j-1):
-			velocities_v[i, j] = -velocities_v[i, j+1] * bounce
-		elif is_solid(i, j):
-			velocities_v[i, j] = -velocities_v[i, j-1] * bounce
+	# for i, j in velocities_v:
+	# 	if is_solid(i, j-1):
+	# 		velocities_v[i, j] = -velocities_v[i, j+1] * bounce
+	# 	elif is_solid(i, j):
+	# 		velocities_v[i, j] = -velocities_v[i, j-1] * bounce
 
 	# for i, j in velocities_u:
 	# 	if is_solid(i-1, j) or is_solid(i, j):
@@ -357,32 +412,32 @@ def advect_particles():
 		
 		pos += vel * dt
 
-		normal = ti.Vector([0.0, 0.0])
+		# normal = ti.Vector([0.0, 0.0])
 
-		if pos.x < dx * boundary_width:
+		if pos.x < dx * boundary_width and vel.x < 0:
 			pos.x = dx * boundary_width
-			# vel.x = 0
-			normal.x -= 1.0
+			vel.x = 0
+			# normal.x -= 1.0
 
-		if pos.x >= length - dx * boundary_width:
+		if pos.x >= length - dx * boundary_width and vel.x > 0:
 			pos.x = length - dx * boundary_width - eps
-			# vel.x = 0
-			normal.x += 1.0
+			vel.x = 0
+			# normal.x += 1.0
 
-		if pos.y < dx * boundary_width:
+		if pos.y < dx * boundary_width and vel.y < 0:
 			pos.y = dx * boundary_width
-			# vel.y = 0
-			normal.y -= 1.0
+			vel.y = 0
+			# normal.y -= 1.0
 
-		if pos.y >= length - dx * boundary_width:
+		if pos.y >= length - dx * boundary_width and vel.y > 0:
 			pos.y = length - dx * boundary_width - eps
-			# vel.y = 0
-			normal.y += 1.0
+			vel.y = 0
+			# normal.y += 1.0
 
-		l = normal.norm()
-		if l > eps:
-			normal /= l
-			vel -= (vel.dot(normal)) * normal
+		# l = normal.norm()
+		# if l > eps:
+		# 	normal /= l
+		# 	vel -= (vel.dot(normal)) * normal
 
 
 		particle_position[k] = pos
@@ -402,7 +457,10 @@ def step():
 	handle_boundary()
 
 	solve_divergence()
-	
+
+	solve_vorticity()
+	enhance_vorticity()
+
 	for i in range(jacobi_iters):
 		global pressures, new_pressures
 		pressure_jacobi(pressures, new_pressures)

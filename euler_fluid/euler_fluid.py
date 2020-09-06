@@ -268,8 +268,8 @@ def apply_force(pre_mouse_pos:ti.ext_arr(), cur_mouse_pos:ti.ext_arr()):
 
 		d2 = (ti.Vector([(i+stagger.x)*dx, (j+stagger.y)*dx]) - p).norm_sqr()
 
-
-		velocities[i, j] = velocities[i, j] + dp * dt * ti.exp(-d2/0.0001) * 20
+		radius = 0.0001
+		velocities[i, j] = velocities[i, j] + dp * dt * ti.exp(-d2/radius) * 20
 
 
 		if dp.norm() > 0.5:
@@ -342,4 +342,4 @@ for frame in range(450):
 
 	# video_manager.write_frame(colors.to_numpy())
 
-video_manager.make/_video(gif=True, mp4=True)
+# video_manager.make/_video(gif=True, mp4=True)
