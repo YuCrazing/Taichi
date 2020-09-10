@@ -77,8 +77,7 @@ def init_grid():
 @ti.kernel
 def init_particle():
 	for i in particle_position:
-		# particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 0.6 * 5  + ti.Vector([0.5, 0.5])
-		particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 5 + ti.Vector([0.5, 0.5])
+		particle_position[i] = (ti.Vector([ti.random(), ti.random()])*0.5 + 0.05) * length
 		particle_velocity[i] = ti.Vector([0.0, 0.0])
 
 
@@ -113,6 +112,16 @@ def handle_boundary():
 @ti.kernel
 def init_step():
 
+	for i, j in types:
+		if not is_solid(i, j):
+			types[i, j] = AIR
+
+	for k in particle_velocity:
+		grid = (particle_position[k] * inv_dx).cast(int)
+		if not is_solid(grid.x, grid.y):
+			types[grid] = FLUID
+
+
 	for k in ti.grouped(velocities_u):
 		velocities_u[k] = 0.0
 		weights_u[k] = 0.0
@@ -125,19 +134,6 @@ def init_step():
 		if is_air(k.x, k.y):
 			pressures[k] = 0.0
 			new_pressures[k] = 0.0
-
-
-@ti.kernel
-def mark_cell():
-	for i, j in types:
-		if not is_solid(i, j):
-			types[i, j] = AIR
-
-
-	for k in particle_velocity:
-		grid = (particle_position[k] * inv_dx).cast(int)
-		if not is_solid(grid.x, grid.y):
-			types[grid] = FLUID
 
 
 @ti.func
@@ -190,8 +186,7 @@ def grid_normalization():
 @ti.kernel
 def apply_gravity():
 	for i, j in velocities_v:
-		# if not is_solid(i, j-1) and not is_solid(i, j):
-			velocities_v[i, j] += -9.8 * dt
+		velocities_v[i, j] += -9.8 * dt
 
 
 @ti.kernel
@@ -207,14 +202,6 @@ def solve_divergence():
 
 			div = v_r - v_l + v_u - v_d
 
-			if is_solid(i-1, j): 
-				div += v_l
-			if is_solid(i+1, j): 
-				div -= v_r
-			if is_solid(i, j-1): 
-				div += v_d
-			if is_solid(i, j+1): 
-				div -= v_u
 
 			divergences[i, j] = div / (dx)
 
@@ -257,13 +244,15 @@ def projection():
 	for i, j in ti.ndrange(m_g, m_g):
 		if is_fluid(i-1, j) or is_fluid(i, j):
 			if is_solid(i-1, j) or is_solid(i, j):
-				velocities_u[i, j] = 0.0
+				# velocities_u[i, j] = 0.0
+				pass
 			else:
 				velocities_u[i, j] -= (pressures[i, j] - pressures[i-1, j]) / dx / rho * dt
 
 		if is_fluid(i, j-1) or is_fluid(i, j):
 			if is_solid(i, j-1) or is_solid(i, j):
-				velocities_v[i, j] = 0.0
+				# velocities_v[i, j] = 0.0
+				pass
 			else:
 				velocities_v[i, j] -= (pressures[i, j] - pressures[i, j-1]) / dx / rho * dt
 
@@ -341,7 +330,6 @@ def advect_particles():
 def step():
 
 	init_step()
-	mark_cell()
 
 	particle_to_grid()
 	grid_normalization()

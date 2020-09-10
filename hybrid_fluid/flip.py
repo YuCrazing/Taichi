@@ -78,8 +78,7 @@ def init_grid():
 @ti.kernel
 def init_particle():
 	for i in particle_position:
-		# particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 0.6 * 5  + ti.Vector([0.5, 0.5])
-		particle_position[i] = ti.Vector([ti.random(), ti.random()]) * 5 + ti.Vector([0.5, 0.5])
+		particle_position[i] = (ti.Vector([ti.random(), ti.random()])*0.5 + 0.05) * length
 		particle_velocity[i] = ti.Vector([0.0, 0.0])
 
 
@@ -113,6 +112,16 @@ def handle_boundary():
 
 @ti.kernel
 def init_step():
+
+	for i, j in types:
+		if not is_solid(i, j):
+			types[i, j] = AIR
+
+	for k in particle_velocity:
+		grid = (particle_position[k] * inv_dx).cast(int)
+		if not is_solid(grid.x, grid.y):
+			types[grid] = FLUID
+
 
 	for k in ti.grouped(velocities_u):
 		velocities_u[k] = 0.0

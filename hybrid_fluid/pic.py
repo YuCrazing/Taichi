@@ -9,17 +9,17 @@ import time
 
 # FIX: adjusted the boundary response in handle_boundary() and advect_particles(), is seems to be more energetic now
 
-# TODO: velocities which are next to solid should be extraploated before and after solving pressure 
 # TODO: solve vorticity enhancement explosion problem
-# TODO: set length = 1 to make fluid more energetic
 
 ti.init(arch=ti.gpu, default_fp=ti.f32)
 
 
 res = 512
-dt = 2e-2 #2e-3 #2e-2
-substep = 1
+dt = 3e-3 #2e-3 #2e-2
+substep = 10
 
+# prevent volume shrinking
+extrapolation_iters = 10
 
 rho = 1000
 jacobi_iters = 300
@@ -31,7 +31,7 @@ m_g = 128
 n_grid = m_g*m_g
 n_particle = n_grid*4
 
-length = 10.0
+length = 1.0
 dx = length/m_g
 inv_dx = 1/dx
 
@@ -65,6 +65,14 @@ new_pressures = ti.var(dt=ti.f32, shape=(m_g, m_g))
 divergences = ti.var(dt=ti.f32, shape=(m_g, m_g))
 vorticities = ti.var(dt=ti.f32, shape=(m_g, m_g))
 
+### for extrapolation
+valid = ti.var(dt=ti.i32, shape=(m_g+1, m_g+1))
+valid_tmp = ti.var(dt=ti.i32, shape=(m_g+1, m_g+1))
+velocities_u_tmp = ti.var(dt=ti.f32, shape=(m_g+1, m_g))
+velocities_v_tmp = ti.var(dt=ti.f32, shape=(m_g, m_g+1))
+
+# visited = ti.var(dt=ti.i32, shape=(m_g+1, m_g+1))
+###
 
 FLUID = 0
 AIR = 1
@@ -128,6 +136,16 @@ def handle_boundary():
 @ti.kernel
 def init_step():
 
+	for i, j in types:
+		if not is_solid(i, j):
+			types[i, j] = AIR
+
+	for k in particle_velocity:
+		grid = (particle_position[k] * inv_dx).cast(int)
+		if not is_solid(grid.x, grid.y):
+			types[grid] = FLUID
+
+
 	for k in ti.grouped(velocities_u):
 		velocities_u[k] = 0.0
 		weights_u[k] = 0.0
@@ -141,18 +159,6 @@ def init_step():
 			pressures[k] = 0.0
 			new_pressures[k] = 0.0
 
-
-@ti.kernel
-def mark_cell():
-	for i, j in types:
-		if not is_solid(i, j):
-			types[i, j] = AIR
-
-
-	for k in particle_velocity:
-		grid = (particle_position[k] * inv_dx).cast(int)
-		if not is_solid(grid.x, grid.y):
-			types[grid] = FLUID
 
 
 @ti.func
@@ -201,8 +207,7 @@ def grid_normalization():
 @ti.kernel
 def apply_gravity():
 	for i, j in velocities_v:
-		# if not is_solid(i, j-1) and not is_solid(i, j):
-			velocities_v[i, j] += -9.8 * dt
+		velocities_v[i, j] += -9.8 * dt
 
 
 @ti.kernel
@@ -217,17 +222,6 @@ def solve_divergence():
 			v_u = velocities_v[i, j+1]
 
 			div = v_r - v_l + v_u - v_d
-
-			# velocities in solid cells are enforced to be 0
-
-			# if is_solid(i-1, j): 
-			# 	div += v_l
-			# if is_solid(i+1, j): 
-			# 	div -= v_r
-			# if is_solid(i, j-1): 
-			# 	div += v_d
-			# if is_solid(i, j+1): 
-			# 	div -= v_u
 
 			divergences[i, j] = div / (dx)
 
@@ -273,34 +267,10 @@ def pressure_jacobi(p:ti.template(), new_p:ti.template()):
 	for i, j in p:
 		if is_fluid(i, j):
 
-			# v_l = velocities_u[i, j]
-			# v_r = velocities_u[i+1, j]
-			# v_d = velocities_v[i, j]
-			# v_u = velocities_v[i, j+1]
-
-			# div = v_r - v_l + v_u - v_d
-
-			# if is_solid(i-1, j): 
-			# 	div += v_l
-			# 	v_l = -v_r * bounce
-			# if is_solid(i+1, j): 
-			# 	div -= v_r
-			# 	v_r = -v_l * bounce
-			# if is_solid(i, j-1): 
-			# 	div += v_d
-			# 	v_d = -v_u * bounce
-			# if is_solid(i, j+1): 
-			# 	div -= v_u
-			# 	v_u = -v_d * bounce
-
-			# div = v_r - v_l + v_u - v_d
-			# div /= dx
-
 			p_l = p[i-1, j]
 			p_r = p[i+1, j]
 			p_d = p[i, j-1]
 			p_u = p[i, j+1]
-
 
 			k = 4
 			if is_solid(i-1, j):
@@ -316,12 +286,7 @@ def pressure_jacobi(p:ti.template(), new_p:ti.template()):
 				p_u = 0.0
 				k -= 1
 
-
 			new_p[i, j] = (1 - w) * p[i, j] + w * ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx) ) / k
-			# new_p[i, j] = ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx) ) / k
-			# new_p[i, j] = 1/3 * p[i, j] + 2/3 * ( p_l + p_r + p_d + p_u - div * rho / dt * (dx*dx) ) / k
-			# new_p[i, j] = ( p_l + p_r + p_d + p_u - div * rho / dt * (dx*dx) ) / k
-			# new_p[i, j] = 1/3 * p[i, j] + 2/3 * ( p_l + p_r + p_d + p_u - div * rho / dt * (dx*dx) ) / k
 
 
 @ti.kernel
@@ -444,17 +409,64 @@ def advect_particles():
 		particle_velocity[k] = vel
 
 
+@ti.kernel
+def mark_valid_u():
+	for i, j in velocities_u:
+		if is_fluid(i-1, j) or is_fluid(i, j):
+			valid[i, j] = 1
+		else:
+			valid[i, j] = 0
+
+@ti.kernel
+def mark_valid_v():
+	for i, j in velocities_v:
+		if is_fluid(i, j-1) or is_fluid(i, j):
+			valid[i, j] = 1
+		else:
+			valid[i, j] = 0
+
+@ti.kernel
+def diffuse(v_new:ti.template(), v:ti.template(), valid_new:ti.template(), valid:ti.template()):
+	for i, j in v_new:
+		if valid[i, j] == 0:
+			s = 0.0
+			count = 0
+			for m, n in ti.static(ti.ndrange((-1, 2), (-1, 2))):
+				if valid[i+m, j+n] == 1:
+					s += v[i+m, j+n]
+					count += 1
+			if count > 0:
+				v_new[i, j] = s / count
+				valid_new[i, j] = 1
+
+def extrapolate_velocity(iter_num):
+	
+	mark_valid_u()
+	for i in range(iter_num):
+		velocities_u_tmp.copy_from(velocities_u)
+		valid_tmp.copy_from(valid)
+		diffuse(velocities_u, velocities_u_tmp, valid, valid_tmp)
+
+	mark_valid_v()
+	for i in range(iter_num):
+		velocities_v_tmp.copy_from(velocities_v)
+		valid_tmp.copy_from(valid)
+		diffuse(velocities_v, velocities_v_tmp, valid, valid_tmp)
+
+
 
 def step():
 
 	init_step()
-	mark_cell()
 
 	particle_to_grid()
 	grid_normalization()
 
 	apply_gravity()
 	handle_boundary()
+
+	extrapolate_velocity(extrapolation_iters)
+	# handle_boundary()
 
 	solve_divergence()
 
@@ -467,6 +479,9 @@ def step():
 		pressures, new_pressures = new_pressures, pressures
 
 	projection()
+
+	extrapolate_velocity(extrapolation_iters)
+	# handle_boundary()
 
 	grid_to_particle()
 	advect_particles()
@@ -487,7 +502,7 @@ gui = ti.GUI("PIC", (res, res))
 result_dir = "./result"
 video_manager = ti.VideoManager(output_dir=result_dir, framerate=30, automatic_build=False)
 
-for frame in range(450):
+for frame in range(300):
 
 	gui.clear(0xFFFFFF)
 
