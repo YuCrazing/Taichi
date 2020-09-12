@@ -1,0 +1,149 @@
+300
+residual: 0.000000
+residual: 0.000301
+residual: -0.000743
+residual: 0.000198
+residual: -0.006685
+residual: 0.001555
+residual: 0.003485
+residual: 0.002932
+residual: 0.005309
+residual: 0.000622
+residual: -0.013381
+residual: -0.000115
+residual: -456644.312500
+residual: -343096.156250
+residual: -211264.671875
+residual: -62149.664063
+residual: 68027.640625
+residual: 130792.125000
+residual: 131108.843750
+residual: 53930.636719
+residual: -31557.164063
+residual: -118023.523438
+[Finished in 4.8s]
+
+
+1000
+residual: 0.000000
+residual: 0.000123
+residual: -0.000528
+residual: -0.000063
+residual: -0.001057
+residual: 0.001766
+residual: -0.000393
+residual: 0.001383
+residual: -0.003909
+residual: 0.004911
+residual: -0.008086
+residual: 0.006531
+residual: -295592.562500
+residual: -45715.269531
+residual: 115453.695313
+residual: 131974.953125
+residual: 52047.015625
+residual: -44529.156250
+residual: -94511.398438
+residual: -95414.781250
+residual: -58069.292969
+residual: -21510.781250
+[Finished in 4.5s]
+
+
+
+[Taichi] mode=release
+[Taichi] version 0.6.27, llvm 10.0.0, commit a34a6128, win, python 3.8.5
+[Taichi] Starting on arch=x64
+[Taichi] materializing...
+2
+4
+8
+2
+4
+8
+ 
+0
+499933.46875
+2
+4
+8
+ 
+1
+12972.2177734375
+2
+4
+8
+ 
+2
+176.234375
+2
+4
+8
+ 
+3
+2.491347312927246
+2
+4
+8
+ 
+4
+0.028944576159119606
+2
+4
+8
+ 
+5
+0.00039611515239812434
+2
+4
+8
+ 
+6
+1.153372409135045e-06
+[Finished in 12.5s]
+
+
+[Taichi] mode=release
+[Taichi] version 0.6.27, llvm 10.0.0, commit a34a6128, win, python 3.8.5
+[Taichi] Starting on arch=x64
+[Taichi] materializing...
+2
+4
+8
+2
+4
+8
+ 
+0
+475304.40625
+2
+4
+8
+ 
+1
+15308.744140625
+2
+4
+8
+ 
+2
+73.5750503540039
+2
+4
+8
+ 
+3
+0.581565260887146
+2
+4
+8
+ 
+4
+0.0020807890687137842
+2
+4
+8
+ 
+5
+1.8363378330832347e-05
+[Finished in 11.4s]

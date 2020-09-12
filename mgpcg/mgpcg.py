@@ -106,6 +106,8 @@ def smooth(l: ti.template(), phase: ti.template()):
     # phase = red/black Gauss-Seidel phase
     for i, j, k in r[l]:
         if (i + j + k) & 1 == phase:
+            # if i >= 256//(2**l)-1:
+            #     print("asdf", 256//(2**l), i)
             z[l][i,j,k] = (r[l][i,j,k] + z[l][i+1,j,k] + z[l][i-1,j,k] \
                                        + z[l][i,j+1,k] + z[l][i,j-1,k] \
                                        + z[l][i,j,k+1] + z[l][i,j,k-1])/6.0
@@ -163,6 +165,7 @@ sum[None] = 0.0
 reduce(z[0], r[0])
 old_zTr = sum[None]
 
+
 # CG
 for i in range(400):
     # alpha = rTr / pTAp
@@ -201,11 +204,11 @@ for i in range(400):
     update_p()
     old_zTr = new_zTr
 
-    print(' ')
+    print('iterrrr')
     print(i)
     print(rTr)
     paint()
     gui.set_image(pixels)
     gui.show()
 
-ti.kernel_profiler_print()
+# ti.kernel_profiler_print()
