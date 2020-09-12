@@ -35,7 +35,7 @@ dx = length/m_g
 inv_dx = 1/dx
 
 # solid boundary
-boundary_width = 2
+boundary_width = 4
 
 eps = 1e-5
 
@@ -47,8 +47,9 @@ eps = 1e-5
 curl_strength = 0.0
 
 
-# show grid types
-debug = False
+# show multi-grid types
+# -1: disable debug
+debug_level = 3
 
 
 # MAC grid
@@ -93,8 +94,8 @@ class MultiGridSolver:
         self.diag = [ti.var(dt=ti.f32, shape=self.grid_shape(i)) for i in range(level)]
         self.type = [ti.var(dt=ti.i32, shape=self.grid_shape(i)) for i in range(level)]
 
-        self.smooth_num = 20
-        self.bottom_smooth_num = 100
+        self.smooth_num = 1
+        self.bottom_smooth_num = 50
 
     def clear(self):
         for l in range(self.level):
@@ -102,6 +103,9 @@ class MultiGridSolver:
             self.r[l].fill(0)
             self.diag[l].fill(0)
             self.type[l].fill(0)
+
+    def is_valid(self, l, i, j):
+        return i >= 0 and i < (self.n//(1<<l)) and j >= 0 and j < (self.n//(1<<l))
 
 
     # have to change tabs to spaces when using @ti.kernel in @ti.data_oriented classes, otherwise taichi compiler will report a error
@@ -126,18 +130,31 @@ class MultiGridSolver:
                         self.type[l][i, j] = FLUID
                     else:
                         self.type[l][i, j] = SOLID
+                        # if l==1 and i > 60:
+                        #     print(i, j)
+                if i < 1 or i >= self.type[l].shape[0] - 1 or j < 1 or j >= self.type[l].shape[1] - 1:
+                    self.type[l][i, j] = SOLID
 
             for i, j in self.diag[l]:
                 if self.type[l][i, j] == FLUID:
                     k = 4
-                    if self.type[l][i-1, j] == SOLID:
+                    if (not self.is_valid(l, i-1, j)) or self.type[l][i-1, j] == SOLID:
                         k -= 1
-                    if self.type[l][i+1, j] == SOLID:
+                    if (not self.is_valid(l, i+1, j)) or self.type[l][i+1, j] == SOLID:
                         k -= 1
-                    if self.type[l][i, j-1] == SOLID:
+                    if (not self.is_valid(l, i, j-1)) or self.type[l][i, j-1] == SOLID:
                         k -= 1
-                    if self.type[l][i, j+1] == SOLID:
+                    if (not self.is_valid(l, i, j+1)) or self.type[l][i, j+1] == SOLID:
                         k -= 1
+                    # k = 4
+                    # if self.type[l][i-1, j] == SOLID:
+                    #     k -= 1
+                    # if self.type[l][i+1, j] == SOLID:
+                    #     k -= 1
+                    # if self.type[l][i, j-1] == SOLID:
+                    #     k -= 1
+                    # if self.type[l][i, j+1] == SOLID:
+                    #     k -= 1
 
                     self.diag[l][i, j] = k
 
@@ -148,7 +165,12 @@ class MultiGridSolver:
         res = 0.0
         for i, j in self.x[l]:
             if self.type[l][i, j] == FLUID:
-                b_hat = self.x[l][i-1, j] + self.x[l][i+1, j] + self.x[l][i, j-1] + self.x[l][i, j+1] - self.x[l][i, j] * self.diag[l][i, j]
+                x_c = self.x[l][i, j]
+                x_l = self.x[l][i-1, j] if self.is_valid(l, i-1, j) else 0.0
+                x_r = self.x[l][i+1, j] if self.is_valid(l, i+1, j) else 0.0
+                x_d = self.x[l][i, j-1] if self.is_valid(l, i, j-1) else 0.0
+                x_u = self.x[l][i, j+1] if self.is_valid(l, i, j+1) else 0.0
+                b_hat = x_l + x_r + x_d + x_u - x_c * self.diag[l][i, j]
                 b = self.r[l][i, j]# * rho / dt * (dx*dx)
                 res += b - b_hat
 
@@ -168,7 +190,13 @@ class MultiGridSolver:
                 # if l == 1 and self.x[l][i, j] > 0:
                 #     print("xxx", self.x[l][i, j])
                 # self.x[l][i, j] = (self.x[l][i-1, j] + self.x[l][i+1, j] + self.x[l][i, j-1] + self.x[l][i, j+1] - self.r[l][i, j] * rho / dt * (dxl*dxl)) / self.diag[l][i, j]
-                self.x[l][i, j] = 1/3 * self.x[l][i, j]  + 2/3 * (self.x[l][i-1, j] + self.x[l][i+1, j] + self.x[l][i, j-1] + self.x[l][i, j+1] - self.r[l][i, j]) / self.diag[l][i, j]
+
+                x_c = self.x[l][i, j]
+                x_l = self.x[l][i-1, j] if self.is_valid(l, i-1, j) else 0.0
+                x_r = self.x[l][i+1, j] if self.is_valid(l, i+1, j) else 0.0
+                x_d = self.x[l][i, j-1] if self.is_valid(l, i, j-1) else 0.0
+                x_u = self.x[l][i, j+1] if self.is_valid(l, i, j+1) else 0.0
+                self.x[l][i, j] =  (x_l + x_r + x_d + x_u - self.r[l][i, j]) / self.diag[l][i, j]
                 # if self.type[l][i, j] == FLUID and self.diag[l][i, j] < 1e-5:
                 #     print(l, i, j, self.type[l][i, j] == FLUID)
                 # if l == 1 and self.x[l][i, j] > 1e5:
@@ -187,7 +215,12 @@ class MultiGridSolver:
         dxl = dx * (2**l)
         for i, j in self.x[l]:
             if self.type[l][i, j] == FLUID:
-                b_hat = self.x[l][i-1, j] + self.x[l][i+1, j] + self.x[l][i, j-1] + self.x[l][i, j+1] - self.x[l][i, j] * self.diag[l][i, j]
+                x_c = self.x[l][i, j]
+                x_l = self.x[l][i-1, j] if self.is_valid(l, i-1, j) else 0.0
+                x_r = self.x[l][i+1, j] if self.is_valid(l, i+1, j) else 0.0
+                x_d = self.x[l][i, j-1] if self.is_valid(l, i, j-1) else 0.0
+                x_u = self.x[l][i, j+1] if self.is_valid(l, i, j+1) else 0.0
+                b_hat = x_l + x_r + x_d + x_u - x_c * self.diag[l][i, j]
                 b = self.r[l][i, j]# * rho / dt * (dxl*dxl)
                 residual = b - b_hat
                 self.r[l+1][i//2, j//2] += 0.25 * residual * 4
@@ -200,10 +233,11 @@ class MultiGridSolver:
             self.x[l][i, j] += self.x[l+1][i//2, j//2]
 
     def solve(self, iter_num, frame):
-        for k in range(2):
+        las = 1.0
+        for k in range(iter_num):
 
             for l in range(self.level-1):
-                for i in range(self.smooth_num):
+                for i in range(self.smooth_num * (1<<l)):
                     self.smooth(l, 0)
                     self.smooth(l, 1)
                 self.r[l+1].fill(0)
@@ -219,19 +253,20 @@ class MultiGridSolver:
 
             for l in reversed(range(self.level-1)):
                 self.prolongate(l)
-                for i in range(self.smooth_num):
+                for i in range(self.smooth_num*(1<<l)):
                     self.smooth(l, 1)
                     self.smooth(l, 0)
 
             # if frame == 20:
             #     print(self.residual(0))
-            
-            print(k, self.residual(0))
+            cur = self.residual(0)
+            print(k, cur, las/max(abs(cur), 1e-5))
+            las = cur
         
         pressures.copy_from(self.x[0])
         print("-----------")
 
-mg_solver = MultiGridSolver(m_g, 4)
+mg_solver = MultiGridSolver(m_g, 3)
 
 
 
@@ -260,7 +295,7 @@ def is_valid(i, j):
 
 @ti.func
 def is_solid(i, j):
-    return is_valid(i, j) and types[i, j] == SOLID
+    return  (is_valid(i, j) and types[i, j] == SOLID) #or (not is_valid(i, j)) 
 
 @ti.func
 def is_air(i, j):
@@ -276,9 +311,9 @@ def handle_boundary():
 
     for i, j in velocities_u:
         if is_solid(i-1, j) and velocities_u[i, j] < 0:
-            velocities_u[i, j] = 0
+            velocities_u[i, j] = 0.0
         if is_solid(i, j) and velocities_u[i, j] > 0:
-            velocities_u[i, j] = 0    
+            velocities_u[i, j] = 0.0  
     
     for i, j in velocities_v:
         if is_solid(i, j-1) and velocities_v[i, j] < 0:
@@ -375,10 +410,10 @@ def solve_divergence():
         if is_fluid(i, j):
 
             # velocities in solid cells are enforced to be 0
-            v_l = velocities_u[i, j]
-            v_r = velocities_u[i+1, j]
-            v_d = velocities_v[i, j]
-            v_u = velocities_v[i, j+1]
+            v_l = velocities_u[i, j]# if is_valid(i-1, j) else 0
+            v_r = velocities_u[i+1, j]# if is_valid(i+1, j) else 0
+            v_d = velocities_v[i, j]# if is_valid(i, j-1) else 0
+            v_u = velocities_v[i, j+1]# if is_valid(i, j+1) else 0
 
             div = v_r - v_l + v_u - v_d
 
@@ -399,38 +434,38 @@ def solve_divergence():
 
 
 
-@ti.kernel
-def solve_vorticity():
+# @ti.kernel
+# def solve_vorticity():
 
-    for i, j in divergences:
-        if not is_solid(i, j):
+#     for i, j in divergences:
+#         if not is_solid(i, j):
 
-            v_l = 0.25 * (velocities_v[i, j] + velocities_v[i, j+1] + velocities_v[i-1, j] + velocities_v[i-1, j+1])
-            v_r = 0.25 * (velocities_v[i, j] + velocities_v[i, j+1] + velocities_v[i+1, j] + velocities_v[i+1, j+1])
-            v_d = 0.25 * (velocities_u[i, j] + velocities_u[i+1, j] + velocities_u[i, j-1] + velocities_u[i+1, j-1])
-            v_u = 0.25 * (velocities_u[i, j] + velocities_u[i+1, j] + velocities_u[i, j+1] + velocities_u[i+1, j+1])
+#             v_l = 0.25 * (velocities_v[i, j] + velocities_v[i, j+1] + velocities_v[i-1, j] + velocities_v[i-1, j+1])
+#             v_r = 0.25 * (velocities_v[i, j] + velocities_v[i, j+1] + velocities_v[i+1, j] + velocities_v[i+1, j+1])
+#             v_d = 0.25 * (velocities_u[i, j] + velocities_u[i+1, j] + velocities_u[i, j-1] + velocities_u[i+1, j-1])
+#             v_u = 0.25 * (velocities_u[i, j] + velocities_u[i+1, j] + velocities_u[i, j+1] + velocities_u[i+1, j+1])
 
-            vorticities[i, j] = ( (v_r - v_l) - (v_u - v_d) ) / dx
+#             vorticities[i, j] = ( (v_r - v_l) - (v_u - v_d) ) / dx
 
-@ti.kernel
-def enhance_vorticity():
+# @ti.kernel
+# def enhance_vorticity():
 
-    for i, j in vorticities:
-        if not is_solid(i, j):
+#     for i, j in vorticities:
+#         if not is_solid(i, j):
 
-            vor_l = vorticities[i-1, j]
-            vor_r = vorticities[i+1, j]
-            vor_d = vorticities[i, j-1]
-            vor_u = vorticities[i, j+1]
-            vor_c = vorticities[i, j]
+#             vor_l = vorticities[i-1, j]
+#             vor_r = vorticities[i+1, j]
+#             vor_d = vorticities[i, j-1]
+#             vor_u = vorticities[i, j+1]
+#             vor_c = vorticities[i, j]
 
-            force = ti.Vector([abs(vor_u) - abs(vor_d), abs(vor_l) - abs(vor_r)]).normalized(1e-3)
-            force *= curl_strength * vor_c
+#             force = ti.Vector([abs(vor_u) - abs(vor_d), abs(vor_l) - abs(vor_r)]).normalized(1e-3)
+#             force *= curl_strength * vor_c
 
-            velocities_u[i, j] = min(max(velocities_u[i, j] + force.x * dt, -1e3), 1e3)
-            velocities_u[i+1, j] = min(max(velocities_u[i+1, j] + force.x * dt, -1e3), 1e3)
-            velocities_v[i, j] = min(max(velocities_v[i, j] + force.x * dt, -1e3), 1e3)
-            velocities_v[i, j+1] = min(max(velocities_v[i, j+1] + force.x * dt, -1e3), 1e3)
+#             velocities_u[i, j] = min(max(velocities_u[i, j] + force.x * dt, -1e3), 1e3)
+#             velocities_u[i+1, j] = min(max(velocities_u[i+1, j] + force.x * dt, -1e3), 1e3)
+#             velocities_v[i, j] = min(max(velocities_v[i, j] + force.x * dt, -1e3), 1e3)
+#             velocities_v[i, j+1] = min(max(velocities_v[i, j+1] + force.x * dt, -1e3), 1e3)
 
 
 @ti.kernel
@@ -441,10 +476,10 @@ def pressure_jacobi(p:ti.template(), new_p:ti.template()):
     for i, j in p:
         if is_fluid(i, j):
 
-            p_l = p[i-1, j]
-            p_r = p[i+1, j]
-            p_d = p[i, j-1]
-            p_u = p[i, j+1]
+            p_l = p[i-1, j]# if is_valid(i-1, j) else 0
+            p_r = p[i+1, j]# if is_valid(i+1, j) else 0
+            p_d = p[i, j-1]# if is_valid(i, j-1) else 0
+            p_u = p[i, j+1]# if is_valid(i, j+1) else 0
 
             new_p[i, j] = (1 - w) * p[i, j] + w * ( p_l + p_r + p_d + p_u - divergences[i, j] * rho / dt * (dx*dx) ) / pressures_factor[i, j]
 
@@ -603,8 +638,8 @@ def step(frame):
 
     solve_divergence()
 
-    solve_vorticity()
-    enhance_vorticity()
+    # solve_vorticity()
+    # enhance_vorticity()
 
     # for i in range(jacobi_iters):
     #     global pressures, new_pressures
@@ -613,14 +648,13 @@ def step(frame):
     #     # if frame == 20:
     #     #     calculate_residual(i)
 
+    # calculate_residual(i)
 
     mg_solver.clear()
     mg_solver.init()
     # # mg_solver.residual(0)
     # # mg_solver.smooth(0, 1)
     mg_solver.solve(10, frame)
-
-
 
 
     projection()
@@ -655,21 +689,40 @@ for frame in range(450):
     #     break
 
     # break
-    if debug:
-        for i in range(m_g):
-            for j in range(m_g):
+    if debug_level != -1:
+        # for i in range(m_g):
+        #     for j in range(m_g):
+        #         color = 0
+        #         if types[i, j] == FLUID:
+        #             color = 0xFFFFFF
+        #         elif types[i, j] == AIR:
+        #             color = 0x0000FF
+        #         elif types[i, j] == SOLID:
+        #             color = 0xFF0000
+        #         gui.circle([(i+0.5)/m_g, (j+0.5)/m_g], radius = 2, color = color)
+        #         # gui.line([i*dx, j*dx], [i*dx, (j+1)*dx], color = 0xFF0000)
+        #         # gui.line([i*dx, (j+1)*dx], [(i+1)*dx, (j+1)*dx], color = 0xFF0000)
+        #         # gui.line([(i+1)*dx, j*dx], [(i+1)*dx, (j+1)*dx], color = 0xFF0000)
+        #         # gui.line([(i+1)*dx, j*dx], [i*dx, j*dx], color = 0xFF0000)
+
+        # print("asdf", mg_solver.type[0])
+        l = min(max(debug_level, 0), mg_solver.level-1)
+        mx_n = m_g//(1<<l)
+        print(mx_n, mg_solver.type[l].shape)
+        for i in range(mx_n):
+            for j in range(mx_n):
                 color = 0
-                if types[i, j] == FLUID:
+                if mg_solver.type[l][i, j] == FLUID:
+                    color = 0x00FF00
+                elif mg_solver.type[l][i, j] == AIR:
                     color = 0xFFFFFF
-                elif types[i, j] == AIR:
-                    color = 0x0000FF
-                elif types[i, j] == SOLID:
+                elif mg_solver.type[l][i, j] == SOLID:
                     color = 0xFF0000
-                gui.circle([(i+0.5)/m_g, (j+0.5)/m_g], radius = 2, color = color)
-                # gui.line([i*dx, j*dx], [i*dx, (j+1)*dx], color = 0xFF0000)
-                # gui.line([i*dx, (j+1)*dx], [(i+1)*dx, (j+1)*dx], color = 0xFF0000)
-                # gui.line([(i+1)*dx, j*dx], [(i+1)*dx, (j+1)*dx], color = 0xFF0000)
-                # gui.line([(i+1)*dx, j*dx], [i*dx, j*dx], color = 0xFF0000)
+                # gui.circle([(i+0.5)/mx_n, (j+0.5)/mx_n], radius = 2, color = color)
+                gui.triangle([(i)/mx_n, (j)/mx_n], [(i+1)/mx_n, (j+1)/mx_n], [(i+1)/mx_n, (j)/mx_n], color = color)
+                gui.triangle([(i)/mx_n, (j)/mx_n], [(i+1)/mx_n, (j+1)/mx_n], [(i)/mx_n, (j+1)/mx_n], color = color)
+
+
 
     gui.circles(particle_position.to_numpy() / length, radius=0.8, color=0x3399FF)
 
