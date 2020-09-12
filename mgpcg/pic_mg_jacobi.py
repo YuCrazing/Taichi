@@ -46,7 +46,7 @@ use_multigrid = True
 # -1: disable debug
 multigrid_debug_level = -1
 
-multigrid_debug_descend_ratio = True
+multigrid_debug_descend_ratio = False
 
 
 # MAC grid
@@ -215,7 +215,6 @@ class MultiGridSolver:
                 self.smooth(self.level-1, 0)
                 self.smooth(self.level-1, 1)
 
-            # print("bottom level:", self.residual(self.level-1))
 
             for l in reversed(range(self.level-1)):
                 self.prolongate(l)
@@ -225,9 +224,10 @@ class MultiGridSolver:
 
             cur = abs(self.residual(0))
             if multigrid_debug_descend_ratio and k > 0:
+                print("bottom level:", self.residual(self.level-1))
                 print("iter %3d:" % k, "[residual: %.6f]" % cur, "[descent ratio: %.6f]" % (las/max(cur, 1e-5)))
             las = cur
-            if cur < 1e-5:
+            if cur < 1:
                 break
         
         pressures.copy_from(self.x[0])
