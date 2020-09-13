@@ -44,7 +44,7 @@ use_multigrid = True
 
 # show multi-grid types
 # -1: disable debug
-multigrid_debug_level = -1
+multigrid_debug_level = 3
 
 multigrid_debug_descend_ratio = False
 
@@ -91,14 +91,11 @@ class MultiGridSolver:
         self.diag = [ti.var(dt=ti.f32, shape=self.grid_shape(i)) for i in range(level)]
         self.type = [ti.var(dt=ti.i32, shape=self.grid_shape(i)) for i in range(level)]
 
-        # self.smooth_num = [(1<<i)*2 for i in range(level)]
-        self.smooth_num = [2 for i in range(level)]
+        self.smooth_num = [12//(i+1) for i in range(level)]
 
-        # self.smooth_num[0] *= 4
-        # self.smooth_num[1] 
+        self.smooth_num[0] = 10
+
         self.smooth_num[self.level-1] = 100
-
-        # self.bottom_smooth_num = 50
 
     def clear(self):
         for l in range(self.level):
@@ -117,6 +114,7 @@ class MultiGridSolver:
             self.diag[0][i, j] = pressures_factor[i, j]
             self.type[0][i, j] = types[i, j]
 
+
         l = 0
         for l in ti.static(range(1, self.level)):
 
@@ -131,6 +129,8 @@ class MultiGridSolver:
                     else:
                         self.type[l][i, j] = SOLID
 
+
+        for l in ti.static(range(self.level)):
             for i, j in self.diag[l]:
                 if self.type[l][i, j] == FLUID:
    
@@ -149,7 +149,6 @@ class MultiGridSolver:
 
     @ti.kernel
     def residual(self, l:ti.template()) -> ti.f32:
-        dxl = dx * (2**l)
         res = 0.0
         for i, j in self.x[l]:
             if self.type[l][i, j] == FLUID:
@@ -160,13 +159,14 @@ class MultiGridSolver:
                 x_u = self.x[l][i, j+1]
                 b_hat = x_l + x_r + x_d + x_u - x_c * self.diag[l][i, j]
                 b = self.r[l][i, j]
-                res += b - b_hat
-
+                res += abs(b - b_hat)
         return res
+
 
     @ti.kernel
     def smooth(self, l:ti.template(), phase:ti.i32):
-        dxl = dx * (2**l)
+
+        w = 1.43
 
         for i, j in self.x[l]:
             if (i + j) & 1 == phase and self.type[l][i, j] == FLUID:
@@ -176,11 +176,23 @@ class MultiGridSolver:
                 x_r = self.x[l][i+1, j]
                 x_d = self.x[l][i, j-1]
                 x_u = self.x[l][i, j+1]
-                self.x[l][i, j] =  (x_l + x_r + x_d + x_u - self.r[l][i, j]) / self.diag[l][i, j]
+                self.x[l][i, j] = (1-w) * self.x[l][i, j] + w * (x_l + x_r + x_d + x_u - self.r[l][i, j]) / self.diag[l][i, j]
+
+
+    # @ti.kernel
+    # def smooth_boundary(self, l:ti.template(), phase:ti.i32):
+    #     for i, j in self.x[l]:
+    #         if (i + j) & 1 == phase and self.type[l][i, j] == FLUID and (self.type[l][i-1, j] != FLUID or self.type[l][i+1, j] != FLUID or self.type[l][i, j-1] != FLUID or self.type[l][i, j+1] != FLUID):
+
+    #             x_c = self.x[l][i, j]
+    #             x_l = self.x[l][i-1, j]
+    #             x_r = self.x[l][i+1, j]
+    #             x_d = self.x[l][i, j-1]
+    #             x_u = self.x[l][i, j+1]
+    #             self.x[l][i, j] = (x_l + x_r + x_d + x_u - self.r[l][i, j]) / self.diag[l][i, j]
 
     @ti.kernel
     def restrict(self, l:ti.template()):
-        dxl = dx * (2**l)
         for i, j in self.x[l]:
             if self.type[l][i, j] == FLUID:
                 x_c = self.x[l][i, j]
@@ -193,41 +205,95 @@ class MultiGridSolver:
                 residual = b - b_hat
                 self.r[l+1][i//2, j//2] += 0.25 * residual * 4
 
+
     @ti.kernel
     def prolongate(self, l:ti.template()):
         for i, j in self.x[l]:
-            self.x[l][i, j] += self.x[l+1][i//2, j//2]
+            if self.type[l][i, j] == FLUID:
+                self.x[l][i, j] += self.x[l+1][i//2, j//2]
+
 
     def solve(self, iter_num):
         print("-----------")
         las = 0.0
         for k in range(iter_num):
+            if multigrid_debug_descend_ratio:
+                print("iter %3d" % k)
+
+            before = [0.0]*self.level
+            after = [0.0]*self.level
+            before_pro = [0.0]*self.level
+            after_pro = [0.0]*self.level
+
 
             for l in range(self.level-1):
+                if multigrid_debug_descend_ratio:
+                    before[l] = abs(self.residual(l))
+                
+                # for i in range(3):
+                #     self.smooth_boundary(l, 0)
+                #     self.smooth_boundary(l, 1)
+
                 for i in range(self.smooth_num[l]):
                     self.smooth(l, 0)
                     self.smooth(l, 1)
+
+                # for i in range(3):
+                #     self.smooth_boundary(l, 0)
+                #     self.smooth_boundary(l, 1)
+
                 self.r[l+1].fill(0)
                 self.x[l+1].fill(0)
                 self.restrict(l)
 
+            if multigrid_debug_descend_ratio:
+                before[self.level-1] = abs(self.residual(self.level-1))
+
             for i in range(self.smooth_num[self.level-1]):
+
                 self.smooth(self.level-1, 0)
                 self.smooth(self.level-1, 1)
 
+            if multigrid_debug_descend_ratio:
+                for l in range(self.level):
+                    after[l] = abs(self.residual(l))
+
 
             for l in reversed(range(self.level-1)):
+                # before = abs(self.residual(l))
                 self.prolongate(l)
+                before_pro[l] = abs(self.residual(l))
+
+                # for i in range(3):
+                #     self.smooth_boundary(l, 0)
+                #     self.smooth_boundary(l, 1)
+
                 for i in range(self.smooth_num[l]):
-                    self.smooth(l, 1)
                     self.smooth(l, 0)
+                    self.smooth(l, 1)
+
+                # for i in range(3):
+                #     self.smooth_boundary(l, 0)
+                #     self.smooth_boundary(l, 1)
+
+
+                after_pro[l] = abs(self.residual(l))
+                # after = abs(self.residual(l))
+                # if multigrid_debug_descend_ratio:
+                #     print("iter %3d" % k, "level", l, "before %.6f"%before, "after %.6f"%after)
+            
+            if multigrid_debug_descend_ratio:
+                for l in range(self.level):
+                    print("level", l, "[before smooth %07.6f"%before[l], "] [smooth %07.6f"%after[l], "] [prolongate %07.6f"%before_pro[l], "] [smooth %07.6f"%after_pro[l], "]")
 
             cur = abs(self.residual(0))
             if multigrid_debug_descend_ratio and k > 0:
-                print("bottom level:", self.residual(self.level-1))
+                # print("bottom level:", self.residual(self.level-1))
+                # for l in range(self.level):
+                #     print("level ", l, abs(self.residual(l)))
                 print("iter %3d:" % k, "[residual: %.6f]" % cur, "[descent ratio: %.6f]" % (las/max(cur, 1e-5)))
             las = cur
-            if cur < 1:
+            if cur < 1e-5:
                 break
         
         pressures.copy_from(self.x[0])
@@ -518,7 +584,7 @@ def calculate_residual() -> ti.f32:
             b =  divergences[i, j] * rho / dt * (dx*dx)
             res += b-b_hat
 
-        return abs(res)
+        return res
 
     # print("residual:", res)
 
@@ -541,14 +607,13 @@ def step():
     if use_multigrid:
         mg_solver.clear()
         mg_solver.init()
-        mg_solver.solve(100)
+        mg_solver.solve(50)
     else:
         for i in range(jacobi_iters):
             global pressures, new_pressures
             pressure_jacobi(pressures, new_pressures)
             pressures, new_pressures = new_pressures, pressures
-            if calculate_residual() < 1:
-                break
+            print("jacobi iter %3d: " % i, calculate_residual())
 
 
     print("residual:", calculate_residual())
@@ -579,11 +644,16 @@ for frame in range(450):
 
     gui.clear(0xFFFFFF)
 
+    debug_frame = 14
+
+    if frame==debug_frame:
+        multigrid_debug_descend_ratio = True
+
     for i in range(substep):
         step()
 
-    # if frame>20:
-    #     break
+    if frame==debug_frame:
+        break
 
     # break
     if use_multigrid and multigrid_debug_level != -1:
