@@ -1,0 +1,334 @@
+[Taichi] mode=release
+[Taichi] version 0.6.27, llvm 10.0.0, commit a34a6128, win, python 3.8.5
+[Taichi] Starting on arch=cuda
+[Taichi] materializing...
+-----------
+residual: 0.0
+-----------
+residual: -7.846174412406981e-06
+-----------
+residual: -6.532471161335707e-06
+-----------
+residual: -3.086798642470967e-06
+-----------
+residual: 2.973852133436594e-06
+-----------
+residual: 3.8136406601552153e-06
+-----------
+residual: -2.638121486597811e-06
+-----------
+residual: -5.453999619930983e-06
+-----------
+residual: 4.722764515463496e-06
+-----------
+residual: 2.0491013401624514e-06
+-----------
+residual: 9.544240128889214e-06
+-----------
+residual: 9.274052899854723e-06
+-----------
+residual: -0.65337735414505
+-----------
+residual: 0.22859971225261688
+-----------
+iter   0
+level 0 [before smooth 419661.250000 ] [smooth 460927.343750 ] [prolongate 143982.734375 ] [smooth 122686.406250 ]
+level 1 [before smooth 458344.625000 ] [smooth 417694.093750 ] [prolongate 123072.578125 ] [smooth 78787.421875 ]
+level 2 [before smooth 409436.843750 ] [smooth 320025.968750 ] [prolongate 269421.687500 ] [smooth 52462.066406 ]
+level 3 [before smooth 300129.781250 ] [smooth 0.076681 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter   1
+level 0 [before smooth 122686.359375 ] [smooth 116432.578125 ] [prolongate 35421.363281 ] [smooth 25919.656250 ]
+level 1 [before smooth 115066.023438 ] [smooth 102979.453125 ] [prolongate 6973.167969 ] [smooth 14544.643555 ]
+level 2 [before smooth 100017.921875 ] [smooth 75276.289062 ] [prolongate 58638.378906 ] [smooth 10162.778320 ]
+level 3 [before smooth 71337.320312 ] [smooth 0.006024 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter   1: [residual: 25919.650391] [descent ratio: 4.733332]
+iter   2
+level 0 [before smooth 25919.697266 ] [smooth 25040.312500 ] [prolongate 9866.625000 ] [smooth 6610.489258 ]
+level 1 [before smooth 24739.140625 ] [smooth 22441.923828 ] [prolongate 3044.865234 ] [smooth 3777.735840 ]
+level 2 [before smooth 21868.910156 ] [smooth 16831.607422 ] [prolongate 13321.292969 ] [smooth 2446.301758 ]
+level 3 [before smooth 15924.283203 ] [smooth 0.000803 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter   2: [residual: 6610.483887] [descent ratio: 3.920991]
+iter   3
+level 0 [before smooth 6610.484375 ] [smooth 6358.382812 ] [prolongate 2054.548096 ] [smooth 1486.397095 ]
+level 1 [before smooth 6291.170410 ] [smooth 5654.605469 ] [prolongate 491.270752 ] [smooth 852.913147 ]
+level 2 [before smooth 5503.119141 ] [smooth 4166.785645 ] [prolongate 3280.785645 ] [smooth 582.075745 ]
+level 3 [before smooth 3943.849121 ] [smooth 0.000068 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter   3: [residual: 1486.396973] [descent ratio: 4.447321]
+iter   4
+level 0 [before smooth 1486.397095 ] [smooth 1437.687012 ] [prolongate 547.616211 ] [smooth 368.456909 ]
+level 1 [before smooth 1421.044922 ] [smooth 1288.525513 ] [prolongate 146.472595 ] [smooth 208.729599 ]
+level 2 [before smooth 1254.213135 ] [smooth 960.939087 ] [prolongate 754.683594 ] [smooth 136.583145 ]
+level 3 [before smooth 910.121277 ] [smooth 0.000040 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter   4: [residual: 368.456818] [descent ratio: 4.034114]
+iter   5
+level 0 [before smooth 368.456787 ] [smooth 354.166229 ] [prolongate 119.304420 ] [smooth 84.984787 ]
+level 1 [before smooth 350.297058 ] [smooth 315.114349 ] [prolongate 29.541870 ] [smooth 48.664314 ]
+level 2 [before smooth 306.755310 ] [smooth 232.766846 ] [prolongate 183.521271 ] [smooth 32.802120 ]
+level 3 [before smooth 220.279633 ] [smooth 0.000027 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter   5: [residual: 84.984726] [descent ratio: 4.335565]
+iter   6
+level 0 [before smooth 84.984688 ] [smooth 82.217369 ] [prolongate 30.169121 ] [smooth 20.423729 ]
+level 1 [before smooth 81.289742 ] [smooth 73.616646 ] [prolongate 8.035783 ] [smooth 11.777742 ]
+level 2 [before smooth 71.645142 ] [smooth 54.789101 ] [prolongate 43.034077 ] [smooth 7.757331 ]
+level 3 [before smooth 51.892254 ] [smooth 0.000002 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter   6: [residual: 20.423754] [descent ratio: 4.161073]
+iter   7
+level 0 [before smooth 20.423790 ] [smooth 19.744497 ] [prolongate 6.976261 ] [smooth 4.869275 ]
+level 1 [before smooth 19.528479 ] [smooth 17.579844 ] [prolongate 1.672200 ] [smooth 2.733337 ]
+level 2 [before smooth 17.110758 ] [smooth 12.986370 ] [prolongate 10.226114 ] [smooth 1.832247 ]
+level 3 [before smooth 12.293700 ] [smooth 0.000001 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter   7: [residual: 4.869277] [descent ratio: 4.194412]
+iter   8
+level 0 [before smooth 4.869273 ] [smooth 4.719019 ] [prolongate 1.705745 ] [smooth 1.092703 ]
+level 1 [before smooth 4.669066 ] [smooth 4.238683 ] [prolongate 0.458017 ] [smooth 0.671982 ]
+level 2 [before smooth 4.122083 ] [smooth 3.143314 ] [prolongate 2.469800 ] [smooth 0.441888 ]
+level 3 [before smooth 2.972793 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter   8: [residual: 1.092702] [descent ratio: 4.456180]
+iter   9
+level 0 [before smooth 1.092703 ] [smooth 1.134415 ] [prolongate 0.292823 ] [smooth 0.274716 ]
+level 1 [before smooth 1.119945 ] [smooth 1.008816 ] [prolongate 0.131903 ] [smooth 0.170204 ]
+level 2 [before smooth 0.980022 ] [smooth 0.750268 ] [prolongate 0.598414 ] [smooth 0.111725 ]
+level 3 [before smooth 0.713335 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter   9: [residual: 0.274716] [descent ratio: 3.977569]
+iter  10
+level 0 [before smooth 0.274716 ] [smooth 0.210716 ] [prolongate 0.102688 ] [smooth 0.065368 ]
+level 1 [before smooth 0.208694 ] [smooth 0.182385 ] [prolongate 0.002072 ] [smooth 0.023582 ]
+level 2 [before smooth 0.174608 ] [smooth 0.127904 ] [prolongate 0.091342 ] [smooth 0.015053 ]
+level 3 [before smooth 0.121759 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  10: [residual: 0.065368] [descent ratio: 4.202606]
+iter  11
+level 0 [before smooth 0.065368 ] [smooth 0.110575 ] [prolongate 0.141658 ] [smooth 0.034042 ]
+level 1 [before smooth 0.108867 ] [smooth 0.101688 ] [prolongate 0.028602 ] [smooth 0.018584 ]
+level 2 [before smooth 0.097809 ] [smooth 0.071549 ] [prolongate 0.064902 ] [smooth 0.011634 ]
+level 3 [before smooth 0.065760 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  11: [residual: 0.034042] [descent ratio: 1.920232]
+iter  12
+level 0 [before smooth 0.034042 ] [smooth 0.000253 ] [prolongate 0.041621 ] [smooth 0.002313 ]
+level 1 [before smooth 0.006206 ] [smooth 0.004454 ] [prolongate 0.049806 ] [smooth 0.011679 ]
+level 2 [before smooth 0.005353 ] [smooth 0.012490 ] [prolongate 0.004128 ] [smooth 0.002828 ]
+level 3 [before smooth 0.012718 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  12: [residual: 0.002313] [descent ratio: 14.717687]
+iter  13
+level 0 [before smooth 0.002313 ] [smooth 0.036598 ] [prolongate 0.074191 ] [smooth 0.049721 ]
+level 1 [before smooth 0.041802 ] [smooth 0.041847 ] [prolongate 0.028653 ] [smooth 0.000309 ]
+level 2 [before smooth 0.046655 ] [smooth 0.044231 ] [prolongate 0.036706 ] [smooth 0.005871 ]
+level 3 [before smooth 0.041821 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  13: [residual: 0.049721] [descent ratio: 0.046519]
+iter  14
+level 0 [before smooth 0.049721 ] [smooth 0.047398 ] [prolongate 0.138275 ] [smooth 0.026406 ]
+level 1 [before smooth 0.048012 ] [smooth 0.046255 ] [prolongate 0.008824 ] [smooth 0.000390 ]
+level 2 [before smooth 0.046080 ] [smooth 0.035465 ] [prolongate 0.019429 ] [smooth 0.001848 ]
+level 3 [before smooth 0.033400 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  14: [residual: 0.026406] [descent ratio: 1.882960]
+iter  15
+level 0 [before smooth 0.026406 ] [smooth 0.150881 ] [prolongate 0.026158 ] [smooth 0.001916 ]
+level 1 [before smooth 0.149341 ] [smooth 0.147375 ] [prolongate 0.006237 ] [smooth 0.016251 ]
+level 2 [before smooth 0.144801 ] [smooth 0.117400 ] [prolongate 0.088109 ] [smooth 0.015021 ]
+level 3 [before smooth 0.110329 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  15: [residual: 0.001916] [descent ratio: 13.780038]
+iter  16
+level 0 [before smooth 0.001916 ] [smooth 0.002024 ] [prolongate 0.102770 ] [smooth 0.023046 ]
+level 1 [before smooth 0.002248 ] [smooth 0.005126 ] [prolongate 0.030319 ] [smooth 0.006838 ]
+level 2 [before smooth 0.003795 ] [smooth 0.015101 ] [prolongate 0.014782 ] [smooth 0.004121 ]
+level 3 [before smooth 0.015094 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  16: [residual: 0.023046] [descent ratio: 0.083148]
+iter  17
+level 0 [before smooth 0.023046 ] [smooth 0.209380 ] [prolongate 0.150807 ] [smooth 0.086848 ]
+level 1 [before smooth 0.208329 ] [smooth 0.210511 ] [prolongate 0.002603 ] [smooth 0.026521 ]
+level 2 [before smooth 0.213925 ] [smooth 0.199542 ] [prolongate 0.147596 ] [smooth 0.027758 ]
+level 3 [before smooth 0.190507 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  17: [residual: 0.086848] [descent ratio: 0.265362]
+iter  18
+level 0 [before smooth 0.086848 ] [smooth 0.054075 ] [prolongate 0.151268 ] [smooth 0.015980 ]
+level 1 [before smooth 0.058006 ] [smooth 0.060890 ] [prolongate 0.041992 ] [smooth 0.001797 ]
+level 2 [before smooth 0.061384 ] [smooth 0.057012 ] [prolongate 0.032763 ] [smooth 0.006269 ]
+level 3 [before smooth 0.055337 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  18: [residual: 0.015980] [descent ratio: 5.434761]
+iter  19
+level 0 [before smooth 0.015980 ] [smooth 0.045765 ] [prolongate 0.099044 ] [smooth 0.000827 ]
+level 1 [before smooth 0.044025 ] [smooth 0.044780 ] [prolongate 0.019725 ] [smooth 0.008219 ]
+level 2 [before smooth 0.041939 ] [smooth 0.035218 ] [prolongate 0.027887 ] [smooth 0.004789 ]
+level 3 [before smooth 0.033074 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  19: [residual: 0.000827] [descent ratio: 19.334200]
+iter  20
+level 0 [before smooth 0.000827 ] [smooth 0.138472 ] [prolongate 0.113462 ] [smooth 0.050042 ]
+level 1 [before smooth 0.140498 ] [smooth 0.145539 ] [prolongate 0.039509 ] [smooth 0.024136 ]
+level 2 [before smooth 0.141217 ] [smooth 0.105209 ] [prolongate 0.095767 ] [smooth 0.017730 ]
+level 3 [before smooth 0.096834 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  20: [residual: 0.050042] [descent ratio: 0.016516]
+iter  21
+level 0 [before smooth 0.050042 ] [smooth 0.113739 ] [prolongate 0.018851 ] [smooth 0.173574 ]
+level 1 [before smooth 0.114987 ] [smooth 0.104061 ] [prolongate 0.002818 ] [smooth 0.015137 ]
+level 2 [before smooth 0.106128 ] [smooth 0.080537 ] [prolongate 0.071365 ] [smooth 0.012502 ]
+level 3 [before smooth 0.074479 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  21: [residual: 0.173574] [descent ratio: 0.288306]
+iter  22
+level 0 [before smooth 0.173574 ] [smooth 0.050304 ] [prolongate 0.022183 ] [smooth 0.050684 ]
+level 1 [before smooth 0.047042 ] [smooth 0.043163 ] [prolongate 0.070207 ] [smooth 0.018160 ]
+level 2 [before smooth 0.040541 ] [smooth 0.024080 ] [prolongate 0.039784 ] [smooth 0.009389 ]
+level 3 [before smooth 0.020294 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  22: [residual: 0.050684] [descent ratio: 3.424656]
+iter  23
+level 0 [before smooth 0.050684 ] [smooth 0.083644 ] [prolongate 0.142258 ] [smooth 0.048268 ]
+level 1 [before smooth 0.086121 ] [smooth 0.079992 ] [prolongate 0.118084 ] [smooth 0.027979 ]
+level 2 [before smooth 0.080219 ] [smooth 0.060631 ] [prolongate 0.080421 ] [smooth 0.016770 ]
+level 3 [before smooth 0.052546 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  23: [residual: 0.048268] [descent ratio: 1.050047]
+iter  24
+level 0 [before smooth 0.048268 ] [smooth 0.017310 ] [prolongate 0.048127 ] [smooth 0.030163 ]
+level 1 [before smooth 0.017528 ] [smooth 0.018511 ] [prolongate 0.052117 ] [smooth 0.005843 ]
+level 2 [before smooth 0.016937 ] [smooth 0.008255 ] [prolongate 0.018099 ] [smooth 0.003165 ]
+level 3 [before smooth 0.004684 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  24: [residual: 0.030163] [descent ratio: 1.600215]
+iter  25
+level 0 [before smooth 0.030163 ] [smooth 0.043013 ] [prolongate 0.029805 ] [smooth 0.113347 ]
+level 1 [before smooth 0.037845 ] [smooth 0.040754 ] [prolongate 0.006003 ] [smooth 0.011045 ]
+level 2 [before smooth 0.038678 ] [smooth 0.040373 ] [prolongate 0.028319 ] [smooth 0.006583 ]
+level 3 [before smooth 0.040001 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  25: [residual: 0.113347] [descent ratio: 0.266115]
+iter  26
+level 0 [before smooth 0.113347 ] [smooth 0.025179 ] [prolongate 0.101705 ] [smooth 0.023970 ]
+level 1 [before smooth 0.021812 ] [smooth 0.012521 ] [prolongate 0.012916 ] [smooth 0.001354 ]
+level 2 [before smooth 0.009495 ] [smooth 0.008274 ] [prolongate 0.007679 ] [smooth 0.002127 ]
+level 3 [before smooth 0.008627 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  26: [residual: 0.023970] [descent ratio: 4.728724]
+iter  27
+level 0 [before smooth 0.023970 ] [smooth 0.161029 ] [prolongate 0.007039 ] [smooth 0.010588 ]
+level 1 [before smooth 0.160129 ] [smooth 0.156896 ] [prolongate 0.056565 ] [smooth 0.027610 ]
+level 2 [before smooth 0.154796 ] [smooth 0.124610 ] [prolongate 0.108605 ] [smooth 0.018885 ]
+level 3 [before smooth 0.114166 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  27: [residual: 0.010588] [descent ratio: 2.263878]
+iter  28
+level 0 [before smooth 0.010588 ] [smooth 0.091830 ] [prolongate 0.065807 ] [smooth 0.150579 ]
+level 1 [before smooth 0.090214 ] [smooth 0.095112 ] [prolongate 0.002712 ] [smooth 0.012829 ]
+level 2 [before smooth 0.098196 ] [smooth 0.080714 ] [prolongate 0.062741 ] [smooth 0.011350 ]
+level 3 [before smooth 0.075797 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  28: [residual: 0.150579] [descent ratio: 0.070315]
+iter  29
+level 0 [before smooth 0.150579 ] [smooth 0.083738 ] [prolongate 0.013131 ] [smooth 0.029821 ]
+level 1 [before smooth 0.088917 ] [smooth 0.067361 ] [prolongate 0.034082 ] [smooth 0.012420 ]
+level 2 [before smooth 0.068354 ] [smooth 0.046097 ] [prolongate 0.043862 ] [smooth 0.007284 ]
+level 3 [before smooth 0.042138 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  29: [residual: 0.029821] [descent ratio: 5.049463]
+iter  30
+level 0 [before smooth 0.029821 ] [smooth 0.065946 ] [prolongate 0.067435 ] [smooth 0.052550 ]
+level 1 [before smooth 0.060966 ] [smooth 0.061446 ] [prolongate 0.006312 ] [smooth 0.005841 ]
+level 2 [before smooth 0.061053 ] [smooth 0.044920 ] [prolongate 0.037634 ] [smooth 0.006450 ]
+level 3 [before smooth 0.042433 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  30: [residual: 0.052550] [descent ratio: 0.567477]
+iter  31
+level 0 [before smooth 0.052550 ] [smooth 0.110154 ] [prolongate 0.107344 ] [smooth 0.089628 ]
+level 1 [before smooth 0.115533 ] [smooth 0.113110 ] [prolongate 0.014492 ] [smooth 0.009379 ]
+level 2 [before smooth 0.114297 ] [smooth 0.101546 ] [prolongate 0.077255 ] [smooth 0.013907 ]
+level 3 [before smooth 0.097237 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  31: [residual: 0.089628] [descent ratio: 0.586309]
+iter  32
+level 0 [before smooth 0.089628 ] [smooth 0.003179 ] [prolongate 0.092388 ] [smooth 0.037266 ]
+level 1 [before smooth 0.013786 ] [smooth 0.014425 ] [prolongate 0.003140 ] [smooth 0.003162 ]
+level 2 [before smooth 0.012193 ] [smooth 0.013621 ] [prolongate 0.003827 ] [smooth 0.000005 ]
+level 3 [before smooth 0.014422 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  32: [residual: 0.037266] [descent ratio: 2.405079]
+iter  33
+level 0 [before smooth 0.037266 ] [smooth 0.023533 ] [prolongate 0.036214 ] [smooth 0.124583 ]
+level 1 [before smooth 0.027135 ] [smooth 0.031032 ] [prolongate 0.013722 ] [smooth 0.002542 ]
+level 2 [before smooth 0.029158 ] [smooth 0.022246 ] [prolongate 0.008808 ] [smooth 0.000229 ]
+level 3 [before smooth 0.021470 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  33: [residual: 0.124583] [descent ratio: 0.299127]
+iter  34
+level 0 [before smooth 0.124583 ] [smooth 0.021318 ] [prolongate 0.044443 ] [smooth 0.047472 ]
+level 1 [before smooth 0.022006 ] [smooth 0.011170 ] [prolongate 0.013083 ] [smooth 0.008711 ]
+level 2 [before smooth 0.008933 ] [smooth 0.001860 ] [prolongate 0.013615 ] [smooth 0.003978 ]
+level 3 [before smooth 0.002982 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  34: [residual: 0.047472] [descent ratio: 2.624328]
+iter  35
+level 0 [before smooth 0.047472 ] [smooth 0.053365 ] [prolongate 0.163011 ] [smooth 0.092811 ]
+level 1 [before smooth 0.053466 ] [smooth 0.071078 ] [prolongate 0.051599 ] [smooth 0.023669 ]
+level 2 [before smooth 0.067835 ] [smooth 0.045859 ] [prolongate 0.046574 ] [smooth 0.011370 ]
+level 3 [before smooth 0.044329 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  35: [residual: 0.092811] [descent ratio: 0.511495]
+iter  36
+level 0 [before smooth 0.092811 ] [smooth 0.104892 ] [prolongate 0.004589 ] [smooth 0.002089 ]
+level 1 [before smooth 0.101314 ] [smooth 0.093843 ] [prolongate 0.001665 ] [smooth 0.002457 ]
+level 2 [before smooth 0.093929 ] [smooth 0.070165 ] [prolongate 0.054534 ] [smooth 0.007312 ]
+level 3 [before smooth 0.064304 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  36: [residual: 0.002089] [descent ratio: 44.424572]
+iter  37
+level 0 [before smooth 0.002089 ] [smooth 0.005714 ] [prolongate 0.057330 ] [smooth 0.151167 ]
+level 1 [before smooth 0.005635 ] [smooth 0.010889 ] [prolongate 0.015987 ] [smooth 0.002459 ]
+level 2 [before smooth 0.008738 ] [smooth 0.023640 ] [prolongate 0.009440 ] [smooth 0.003243 ]
+level 3 [before smooth 0.025071 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  37: [residual: 0.151167] [descent ratio: 0.013820]
+iter  38
+level 0 [before smooth 0.151167 ] [smooth 0.031182 ] [prolongate 0.166945 ] [smooth 0.111674 ]
+level 1 [before smooth 0.028611 ] [smooth 0.014017 ] [prolongate 0.030084 ] [smooth 0.007952 ]
+level 2 [before smooth 0.015180 ] [smooth 0.007571 ] [prolongate 0.005037 ] [smooth 0.002303 ]
+level 3 [before smooth 0.007882 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  38: [residual: 0.111674] [descent ratio: 1.353651]
+iter  39
+level 0 [before smooth 0.111674 ] [smooth 0.112948 ] [prolongate 0.162641 ] [smooth 0.160630 ]
+level 1 [before smooth 0.112416 ] [smooth 0.112643 ] [prolongate 0.003184 ] [smooth 0.012739 ]
+level 2 [before smooth 0.111115 ] [smooth 0.086113 ] [prolongate 0.067515 ] [smooth 0.011200 ]
+level 3 [before smooth 0.080738 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  39: [residual: 0.160630] [descent ratio: 0.695223]
+iter  40
+level 0 [before smooth 0.160630 ] [smooth 0.070609 ] [prolongate 0.022230 ] [smooth 0.038778 ]
+level 1 [before smooth 0.074849 ] [smooth 0.061489 ] [prolongate 0.001710 ] [smooth 0.014882 ]
+level 2 [before smooth 0.063870 ] [smooth 0.070123 ] [prolongate 0.056074 ] [smooth 0.012522 ]
+level 3 [before smooth 0.068097 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  40: [residual: 0.038778] [descent ratio: 4.142296]
+iter  41
+level 0 [before smooth 0.038778 ] [smooth 0.026802 ] [prolongate 0.095504 ] [smooth 0.035780 ]
+level 1 [before smooth 0.028516 ] [smooth 0.034077 ] [prolongate 0.051563 ] [smooth 0.011175 ]
+level 2 [before smooth 0.034912 ] [smooth 0.038717 ] [prolongate 0.038826 ] [smooth 0.007482 ]
+level 3 [before smooth 0.034705 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  41: [residual: 0.035780] [descent ratio: 1.083801]
+iter  42
+level 0 [before smooth 0.035780 ] [smooth 0.093139 ] [prolongate 0.126253 ] [smooth 0.042787 ]
+level 1 [before smooth 0.091842 ] [smooth 0.083157 ] [prolongate 0.019386 ] [smooth 0.011151 ]
+level 2 [before smooth 0.079988 ] [smooth 0.058392 ] [prolongate 0.052024 ] [smooth 0.010166 ]
+level 3 [before smooth 0.054693 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  42: [residual: 0.042787] [descent ratio: 0.836228]
+iter  43
+level 0 [before smooth 0.042787 ] [smooth 0.032655 ] [prolongate 0.047606 ] [smooth 0.092762 ]
+level 1 [before smooth 0.030799 ] [smooth 0.038938 ] [prolongate 0.019446 ] [smooth 0.011298 ]
+level 2 [before smooth 0.038721 ] [smooth 0.036023 ] [prolongate 0.034090 ] [smooth 0.007317 ]
+level 3 [before smooth 0.032876 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  43: [residual: 0.092762] [descent ratio: 0.461253]
+iter  44
+level 0 [before smooth 0.092762 ] [smooth 0.129404 ] [prolongate 0.052000 ] [smooth 0.081390 ]
+level 1 [before smooth 0.134190 ] [smooth 0.128004 ] [prolongate 0.020582 ] [smooth 0.023652 ]
+level 2 [before smooth 0.129334 ] [smooth 0.114692 ] [prolongate 0.097159 ] [smooth 0.020040 ]
+level 3 [before smooth 0.109516 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  44: [residual: 0.081390] [descent ratio: 1.139725]
+iter  45
+level 0 [before smooth 0.081390 ] [smooth 0.012949 ] [prolongate 0.089616 ] [smooth 0.053405 ]
+level 1 [before smooth 0.010365 ] [smooth 0.016835 ] [prolongate 0.009898 ] [smooth 0.006126 ]
+level 2 [before smooth 0.018458 ] [smooth 0.010269 ] [prolongate 0.018744 ] [smooth 0.002391 ]
+level 3 [before smooth 0.007344 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  45: [residual: 0.053405] [descent ratio: 1.524003]
+iter  46
+level 0 [before smooth 0.053405 ] [smooth 0.038004 ] [prolongate 0.121921 ] [smooth 0.071944 ]
+level 1 [before smooth 0.041232 ] [smooth 0.048126 ] [prolongate 0.016554 ] [smooth 0.011962 ]
+level 2 [before smooth 0.046386 ] [smooth 0.030239 ] [prolongate 0.033240 ] [smooth 0.006565 ]
+level 3 [before smooth 0.028291 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  46: [residual: 0.071944] [descent ratio: 0.742320]
+iter  47
+level 0 [before smooth 0.071944 ] [smooth 0.086231 ] [prolongate 0.061966 ] [smooth 0.080708 ]
+level 1 [before smooth 0.084277 ] [smooth 0.080630 ] [prolongate 0.001365 ] [smooth 0.005388 ]
+level 2 [before smooth 0.078367 ] [smooth 0.062249 ] [prolongate 0.045053 ] [smooth 0.006131 ]
+level 3 [before smooth 0.057369 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  47: [residual: 0.080708] [descent ratio: 0.891411]
+iter  48
+level 0 [before smooth 0.080708 ] [smooth 0.023297 ] [prolongate 0.038780 ] [smooth 0.004250 ]
+level 1 [before smooth 0.029740 ] [smooth 0.015872 ] [prolongate 0.011054 ] [smooth 0.002483 ]
+level 2 [before smooth 0.017156 ] [smooth 0.013241 ] [prolongate 0.012812 ] [smooth 0.002144 ]
+level 3 [before smooth 0.012041 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  48: [residual: 0.004250] [descent ratio: 18.990583]
+iter  49
+level 0 [before smooth 0.004250 ] [smooth 0.059820 ] [prolongate 0.093095 ] [smooth 0.146599 ]
+level 1 [before smooth 0.055457 ] [smooth 0.050467 ] [prolongate 0.012577 ] [smooth 0.011261 ]
+level 2 [before smooth 0.049647 ] [smooth 0.048192 ] [prolongate 0.043946 ] [smooth 0.010355 ]
+level 3 [before smooth 0.047343 ] [smooth 0.000000 ] [prolongate 0.000000 ] [smooth 0.000000 ]
+iter  49: [residual: 0.146599] [descent ratio: 0.028990]
+residual: -0.14681477844715118
+[Finished in 11.1s]
