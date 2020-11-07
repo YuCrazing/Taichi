@@ -64,7 +64,7 @@ MPM 算法模拟多种材料。
 使用 Multigrid Methods (V-cycle) 求解 PIC 中的压力项。
 需要注意边界条件的处理，在做全局的 smooth 前后，需要对边界部分进行单独的 smooth 。
 
-<!-- ![](multigrid/output/multigrid_compressed_300.gif) -->
-<img src="multigrid/output/multigrid_compressed_300.gif" height="150" />
+<!-- ![](multigrid_todo/output/multigrid_compressed_300.gif) -->
+<img src="multigrid_todo/output/multigrid_compressed_300.gif" height="150" />
 
 TODO: multigrid conjugate gradient
