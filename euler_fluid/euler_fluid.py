@@ -10,6 +10,7 @@ ti.init(arch=ti.gpu)
 n = 512
 dt = 0.03
 dx = 1/n
+# dx = 1.0
 
 # 1, 2, 3
 RK = 3
@@ -52,11 +53,11 @@ def I(i, j):
 	return ti.Vector([i, j])
 
 
-@ti.func
-def vel(p):
-	# rotation
-	# return ti.Vector([p.y-center.y, center.x-p.x])
-	return sample_bilinear(velocities, p)
+# @ti.func
+# def vel(p):
+# 	# rotation
+# 	# return ti.Vector([p.y-center.y, center.x-p.x])
+# 	return sample_bilinear(velocities, p)
 
 
 @ti.kernel
@@ -72,8 +73,8 @@ def init_color_field():
 def init_velocity_field():
 	# rotation
 	for i in ti.grouped(velocities):
-		p = (i + stagger) * dx
-		d = p - center
+		# p = (i + stagger) * dx
+		# d = p - center
 		# if d.norm_sqr() < 0.2:
 			# velocities[i] = ti.Vector([p.y-center.y, center.x-p.x])
 		velocities[i] = ti.Vector([0.0, 0.0])
@@ -122,36 +123,36 @@ def sample_max(field, p):
 
 
 @ti.func
-def backtrace(p, dt):
+def backtrace(velocities, p, dt):
 
 	if ti.static(RK == 1):
-		return p - vel(p) * dt
+		return p - sample_bilinear(velocities, p) * dt
 	elif ti.static(RK == 2):
-		p_mid = p - vel(p) * dt * 0.5
-		return p - vel(p_mid) * dt
+		p_mid = p - sample_bilinear(velocities, p) * dt * 0.5
+		return p - sample_bilinear(velocities, p_mid) * dt
 	elif ti.static(RK == 3):
-		v_p = vel(p)
+		v_p = sample_bilinear(velocities, p)
 		p_mid = p - v_p * dt * 0.5
-		v_mid = vel(p_mid)
+		v_mid = sample_bilinear(velocities, p_mid)
 		p_mid_mid = p - v_mid * dt * 0.75
-		v_mid_mid = vel(p_mid_mid)
+		v_mid_mid = sample_bilinear(velocities, p_mid_mid)
 		return p - (2/9 * v_p + 1/3*v_mid + 4/9*v_mid_mid) * dt
 
 
 
 @ti.func
-def semi_lagrangian(field, new_field, dt):
+def semi_lagrangian(velocities, field, new_field, dt):
 	for i in ti.grouped(field):
 		p = (i + stagger) * dx
-		new_field[i] = sample_bilinear(field, backtrace(p, dt))
+		new_field[i] = sample_bilinear(field, backtrace(velocities, p, dt))
 
 
 
 @ti.func
-def BFECC(field, new_field, new_new_field, dt):
+def BFECC(velocities, field, new_field, new_new_field, dt):
 	
-	semi_lagrangian(field, new_field, dt)
-	semi_lagrangian(new_field, new_new_field, -dt)
+	semi_lagrangian(velocities, field, new_field, dt)
+	semi_lagrangian(velocities, new_field, new_new_field, -dt)
 
 	for i in ti.grouped(field):
 		
@@ -159,7 +160,7 @@ def BFECC(field, new_field, new_new_field, dt):
 
 		if ti.static(enable_clipping):
 			
-			source_pos = backtrace( (i + stagger) * dx, dt )
+			source_pos = backtrace(velocities, (i + stagger) * dx, dt )
 			mi = sample_min(field, source_pos)
 			mx = sample_max(field, source_pos)
 
@@ -169,17 +170,17 @@ def BFECC(field, new_field, new_new_field, dt):
 
 
 @ti.kernel
-def advect(field:ti.template(), new_field:ti.template(), new_new_field:ti.template(), dt:ti.f32):
+def advect(velocities:ti.template(), field:ti.template(), new_field:ti.template(), new_new_field:ti.template(), dt:ti.f32):
 
 	if ti.static(enable_BFECC):
-		BFECC(field, new_field, new_new_field, dt)
+		BFECC(velocities, field, new_field, new_new_field, dt)
 	else:
-		semi_lagrangian(field, new_field, dt)
+		semi_lagrangian(velocities, field, new_field, dt)
 
 
 
 @ti.kernel
-def solve_divergence():
+def solve_divergence(velocities:ti.template(), divergences:ti.template()):
 	for i, j in velocities:
 		c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
 		l = c - ti.Vector([1, 0]) * dx
@@ -225,7 +226,7 @@ def pressure_jacobi(pressures:ti.template(), new_pressures:ti.template()):
 
 
 @ti.kernel
-def projection():
+def projection(velocities:ti.template(), pressures:ti.template()):
 	for i, j in velocities:
 		c = ti.Vector([i + stagger.x, j + stagger.y]) * dx
 		l = c - ti.Vector([1, 0]) * dx
@@ -253,7 +254,7 @@ def projection():
 
 
 @ti.kernel
-def apply_force(pre_mouse_pos:ti.ext_arr(), cur_mouse_pos:ti.ext_arr()):
+def apply_force(velocities:ti.template(), colors:ti.template(), pre_mouse_pos:ti.ext_arr(), cur_mouse_pos:ti.ext_arr()):
 
 	p = ti.Vector([cur_mouse_pos[0], cur_mouse_pos[1]])
 	pre_p = ti.Vector([pre_mouse_pos[0], pre_mouse_pos[1]])
@@ -269,7 +270,7 @@ def apply_force(pre_mouse_pos:ti.ext_arr(), cur_mouse_pos:ti.ext_arr()):
 		d2 = (ti.Vector([(i+stagger.x)*dx, (j+stagger.y)*dx]) - p).norm_sqr()
 
 		radius = 0.0001
-		velocities[i, j] = velocities[i, j] + dp * dt * ti.exp(-d2/radius) * 20
+		velocities[i, j] = velocities[i, j] + dp * dt * ti.exp(-d2/radius) * 40
 
 
 		if dp.norm() > 0.5:
@@ -278,7 +279,7 @@ def apply_force(pre_mouse_pos:ti.ext_arr(), cur_mouse_pos:ti.ext_arr()):
 
 
 @ti.kernel
-def decay_color():
+def decay_color(colors:ti.template()):
 	for i in ti.grouped(colors):
 		colors[i] = colors[i] * 0.99
 
@@ -297,10 +298,10 @@ pre_mouse_pos = None
 cur_mouse_pos = None
 
 
-for frame in range(450):
+for frame in range(450000):
 
-	advect(velocities, new_velocities, new_new_velocities, dt)
-	advect(colors, new_colors, new_new_colors, dt)
+	advect(velocities, velocities, new_velocities, new_new_velocities, dt)
+	advect(velocities, colors, new_colors, new_new_colors, dt)
 	velocities, new_velocities = new_velocities, velocities
 	colors, new_colors = new_colors, colors
 
@@ -312,21 +313,21 @@ for frame in range(450):
 		cur_mouse_pos = np.array(gui.get_cursor_pos(), dtype=np.float32)
 		if pre_mouse_pos is None:
 			pre_mouse_pos = cur_mouse_pos
-		apply_force(pre_mouse_pos, cur_mouse_pos)
+		apply_force(velocities, colors, pre_mouse_pos, cur_mouse_pos)
 	else:
 		pre_mouse_pos = cur_mouse_pos = None
 
 
-	decay_color()
+	decay_color(colors)
 
-	solve_divergence()
+	solve_divergence(velocities, divergences)
 
 
 	for i in range(jacobi_iters):
 		pressure_jacobi(pressures, new_pressures)
 		pressures, new_pressures = new_pressures, pressures
 
-	projection()
+	projection(velocities, pressures)
 
 
 
