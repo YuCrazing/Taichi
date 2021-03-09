@@ -34,7 +34,9 @@ TODO: Fast multipole methods
 
 <!-- ![](euler_fluid/euler_fluid_output/euler_fluid_compressed_300.gif) -->
 <img src="euler_fluid/euler_fluid_output/euler_fluid_compressed_300.gif" height="150" />
+
 **UPDATE**: 
+
 上图中的结果是错误的。在函数中使用 taichi 的 buffer 需要将 buffer 作为参数传入，不能直接作为全局变量使用。 
 
 
