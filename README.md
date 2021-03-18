@@ -27,7 +27,7 @@ TODO: Fast multipole methods
 
 几种 advection 方法的对比：
 
-<!-- ![](euler_fluid/advection_output/comparison_compressed_800.gif) -->
+
 <img src="euler_fluid/advection_output/comparison_compressed_800.gif" height="150" />
 
 对 [Stable Fluid](http://graphics.stanford.edu/courses/cs468-05-fall/slides_2/an_stable_fluid_fall_05.pdf) 的实现。
