@@ -275,7 +275,7 @@ video_manager = ti.VideoManager(output_dir=result_dir, framerate=60, automatic_b
 
 init(collisons, velocities, colors)
 
-for frame in range(1000):
+for frame in range(10000):
 
 
 
@@ -316,7 +316,7 @@ for frame in range(1000):
 	# gui.text(content=f'Frame{frame}', pos=(0, 0.5), color=0xFFFFFF)
 
 	# video_manager.write_frame(gui.get_image())
-	video_manager.write_frame(colors.to_numpy())
+	# video_manager.write_frame(colors.to_numpy())
 	gui.show()
 
 
