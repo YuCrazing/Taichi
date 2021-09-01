@@ -23,17 +23,17 @@
 TODO: Fast multipole methods
 
 
-### Eulerian Fluid
+<!-- ### Eulerian Fluid -->
 
 
-对 [Stable Fluid](http://graphics.stanford.edu/courses/cs468-05-fall/slides_2/an_stable_fluid_fall_05.pdf) 的实现。
+<!-- 对 [Stable Fluid](http://graphics.stanford.edu/courses/cs468-05-fall/slides_2/an_stable_fluid_fall_05.pdf) 的实现。 -->
 
 <!-- ![](euler_fluid/euler_fluid_output/euler_fluid_compressed_300.gif) -->
-<img src="euler_fluid/euler_fluid_output/euler_fluid_compressed_300.gif" height="150" />
+<!-- <img src="euler_fluid/euler_fluid_output/euler_fluid_compressed_300.gif" height="150" /> -->
 
-**UPDATE**: 
+<!-- **UPDATE**:  -->
 
-上图中的结果是错误的。在函数中使用 taichi 的 buffer 需要将 buffer 作为参数传入，不能直接作为全局变量使用。 
+<!-- 上图中的结果是错误的。在函数中使用 taichi 的 buffer 需要将 buffer 作为参数传入，不能直接作为全局变量使用。  -->
 
 
 
